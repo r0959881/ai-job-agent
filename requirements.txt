@@ -2,3 +2,4 @@ groq
 python-dotenv
 PyYAML
 requests
+python-docx

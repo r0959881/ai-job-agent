@@ -3,6 +3,7 @@ import sqlite3
 import yaml
 from dotenv import load_dotenv
 from groq import Groq
+from generate_doc import create_tailored_cv_docx
 
 # 1. Load environment variables (.env file)
 load_dotenv()
@@ -58,10 +59,17 @@ def tailor_cv_for_job(job_id):
     1. Write a 3-sentence professional summary tailored specifically to the {title} role.
     2. Select and rephrase the 4 most relevant work experience bullet points from my master resume to highlight matching skills for {title}.
     3. CRITICAL RULE: DO NOT invent, fabricate, or assume any experience, skills, company names, or degrees not present in my master resume.
+    
+    Format your response EXACTLY as:
+    SUMMARY: <your 3-sentence summary>
+    BULLETS:
+    - <bullet 1>
+    - <bullet 2>
+    - <bullet 3>
+    - <bullet 4>
     """
 
     try:
-        # Active supported Groq model
         response = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
@@ -72,16 +80,27 @@ def tailor_cv_for_job(job_id):
         print("\n--- Tailored AI Output ---\n")
         print(tailored_text)
 
-        os.makedirs("output", exist_ok=True)
-        clean_company = "".join(c for c in company if c.isalnum() or c in (' ', '_')).rstrip()
-        clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_')).rstrip()
-        filename = f"output/Tailored_{clean_company.replace(' ', '_')}_{clean_title.replace(' ', '_')}.txt"
-        
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(tailored_text)
+        summary = ""
+        bullets = []
+        for line in tailored_text.strip().splitlines():
+            if line.startswith("SUMMARY:"):
+                summary = line.removeprefix("SUMMARY:").strip()
+            elif line.strip().startswith("- "):
+                bullets.append(line.strip()[2:])
 
-        print(f"\n✅ Saved tailored document to: {filename}")
-        return tailored_text
+        if not summary:
+            summary = tailored_text.strip()
+
+        docx_path = create_tailored_cv_docx(company, title, summary, bullets)
+        if not docx_path:
+            return None
+
+        conn = sqlite3.connect("jobs.db")
+        conn.execute("UPDATE jobs SET status = 'processed' WHERE id = ?", (job_id,))
+        conn.commit()
+        conn.close()
+
+        return docx_path
 
     except Exception as e:
         print(f"❌ Error communicating with Groq API: {e}")
@@ -91,13 +110,13 @@ if __name__ == "__main__":
     if os.path.exists("jobs.db"):
         conn = sqlite3.connect("jobs.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM jobs LIMIT 1")
-        first_job = cursor.fetchone()
+        cursor.execute("SELECT id FROM jobs WHERE status = 'new' LIMIT 1")
+        next_job = cursor.fetchone()
         conn.close()
 
-        if first_job:
-            tailor_cv_for_job(first_job[0])
+        if next_job:
+            tailor_cv_for_job(next_job[0])
         else:
-            print("⚠️ No jobs found in database. Run 'python discovery.py' first!")
+            print("⚠️ No new unprocessed jobs found in database!")
     else:
         print("⚠️ jobs.db does not exist yet. Run 'python database.py' and 'python discovery.py' first!")
