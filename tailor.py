@@ -14,6 +14,11 @@ if not groq_api_key:
         "❌ GROQ_API_KEY is not configured. "
         "Copy .env.example to .env and add your Groq API key."
     )
+if not groq_api_key.startswith("gsk_"):
+    raise SystemExit(
+        "❌ GROQ_API_KEY is invalid or still a placeholder. "
+        "Create a new Groq key and set it as GROQ_API_KEY in .env."
+    )
 client = Groq(api_key=groq_api_key)
 
 def load_master_resume():
