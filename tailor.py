@@ -8,7 +8,13 @@ from groq import Groq
 load_dotenv()
 
 # 2. Initialize Groq client
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+groq_api_key = os.getenv("GROQ_API_KEY")
+if not groq_api_key:
+    raise SystemExit(
+        "❌ GROQ_API_KEY is not configured. "
+        "Copy .env.example to .env and add your Groq API key."
+    )
+client = Groq(api_key=groq_api_key)
 
 def load_master_resume():
     if not os.path.exists("resume_data.yaml"):
