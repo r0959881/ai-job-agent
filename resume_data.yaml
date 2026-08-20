@@ -1,0 +1,107 @@
+personal_info:
+  full_name: "Ammar Haider"
+  headline: "Data Engineer & Analytics Specialist (Databricks, PySpark, Microsoft Fabric, Power BI)"
+  email: "ammarnaqvi561@gmail.com"
+  phone: "+32 466 40 93 24"
+  location: "Mechelen / Antwerp, Belgium"
+
+standard_answers:
+  work_authorization: "Authorized to work in Belgium / EU"
+  sponsorship_required: "No"
+  notice_period: "Immediate / 2 weeks"
+  salary_expectation: "Market standard / Competitive"
+
+core_skills:
+  platforms_and_cloud:
+    - "Azure Databricks"
+    - "Microsoft Fabric"
+    - "Azure Data Lake Storage (ADLS Gen2)"
+    - "Delta Lake"
+  engineering_and_etl:
+    - "Medallion Architecture (Bronze-Silver-Gold)"
+    - "ETL/ELT Pipeline Development"
+    - "Data Modelling (Kimball, Star Schema)"
+    - "Data Quality & Governance"
+  languages_and_tools:
+    - "PySpark"
+    - "SQL (Advanced)"
+    - "Python (Pandas, NumPy)"
+    - "DAX"
+  bi_and_reporting:
+    - "Power BI"
+    - "Power Automate"
+    - "Semantic Modelling"
+    - "Paginated Reports"
+  devops_and_orchestration:
+    - "Apache Airflow"
+    - "Databricks Workflows"
+    - "Git / GitHub Actions CI/CD"
+    - "Docker & Kubernetes"
+
+experience:
+  - company: "Estée Lauder Companies"
+    role: "Analytics & Data Insights Specialist"
+    location: "Westerlo, Belgium"
+    dates: "Jun 2026 - Aug 2026"
+    type: "Professional Experience"
+    bullets:
+      - "Collaborated directly with key stakeholders to gather business requirements, translating strategic goals into actionable functional specifications, user stories, and clear reporting roadmaps."
+      - "Designed and delivered interactive Power BI dashboards for 50+ business users, empowering non-technical teams to extract direct business value and insights from raw data."
+      - "Served as the primary liaison between business teams and technical engineering teams to guarantee delivery aligned with stakeholder expectations, establishing automated quality checks with 99%+ accuracy."
+      - "Documented data definitions, metric logic, and business use cases to ensure consistency and prepare for future team coaching and onboarding."
+
+  - company: "Estée Lauder Companies (Site Hygiene Team)"
+    role: "Data and Automation Intern"
+    location: "Westerlo, Belgium"
+    dates: "Feb 2026 - Jun 2026"
+    type: "Internship"
+    bullets:
+      - "Conducted end-to-end analysis of manual reporting processes, transforming a 12-week manual workflow into a streamlined, single-click Power BI and Power Automate solution."
+      - "Wrote complex SQL queries to extract, clean, and shape large-scale operational data, ensuring accurate metrics prior to visual layer ingestion."
+      - "Guided business users through interactive iterative reviews to refine KPIs and enhance report usability and adoption."
+
+projects:
+  - title: "Refrigerator Ships Production ETL Pipeline"
+    tech_stack: "Azure Databricks, PySpark, Delta Lake, Auto Loader"
+    highlights:
+      - "Ingested IoT sensor data and fleet API sources (50K+ daily records) into a central Delta Lake repository."
+      - "Optimized query execution times from 8 minutes down to 45 seconds using ZORDER clustering and partitioning."
+
+  - title: "E-Commerce Lakehouse Platform"
+    tech_stack: "Azure Databricks, PySpark, REST APIs, Structured Streaming, Power BI"
+    highlights:
+      - "Unified data across 5 distinct source systems into Medallion data layers with SCD Type 2 history tracking."
+      - "Implemented automated data quality frameworks (null validation, referential integrity) and incremental Power BI refresh."
+
+  - title: "Data Pipeline CI/CD DevOps Platform"
+    tech_stack: "GitHub Actions, Docker, Kubernetes, Python"
+    highlights:
+      - "Created automated CI/CD pipelines with GitHub Actions for unit and integration testing of PySpark workflows."
+      - "Built infrastructure-as-code scripts for automatic environment provisioning, reducing manual setup time by 80%."
+
+  - title: "Power BI Analytics Pipeline — Special Olympics Belgium"
+    tech_stack: "Python, MySQL, Power BI, GDPR"
+    highlights:
+      - "Designed a complete data integration and analytics solution for non-profit operations under strict GDPR compliance."
+      - "Modelled raw organizational data and presented executive KPI dashboards directly to the CEO."
+
+certifications:
+  - name: "Databricks AI Fundamentals"
+    issuer: "Databricks"
+    year: "2026"
+  - name: "Microsoft AI Fest — Analytics & AI"
+    issuer: "Microsoft"
+    year: "2026"
+  - name: "Deloitte Data Analytics Virtual Experience"
+    issuer: "Deloitte / Forage"
+    year: "2025"
+
+education:
+  degree: "Bachelor of Business — Data Science, Protection and Security"
+  institution: "Thomas More University of Applied Sciences"
+  location: "Mechelen, Belgium"
+  dates: "2023 - 2026"
+
+languages:
+  - "English: Proficient (Professional)"
+  - "Dutch: A2 (actively progressing toward B1)"
