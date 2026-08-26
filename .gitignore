@@ -1,4 +1,8 @@
 .env
+.env.*
+!.env.example
+credentials.json
+token.json
 jobs.db
 __pycache__/
-output/*.docx
+output/*
