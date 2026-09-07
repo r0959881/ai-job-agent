@@ -5,6 +5,33 @@ personal_info:
   phone: "+32 466 40 93 24"
   location: "Mechelen / Antwerp, Belgium"
 
+role_profiles:
+  Data Integration:
+    focus: "ETL/ELT, source-system integration, data quality, data modelling, and reliable reporting inputs"
+    keywords: ["data integration", "ETL", "ELT", "data ingestion", "data quality", "SQL", "APIs"]
+    preferred_skill_categories: ["engineering_and_etl", "languages_and_tools", "platforms_and_cloud", "devops_and_orchestration"]
+    preferred_projects: ["Refrigerator Ships Production ETL Pipeline", "E-Commerce Lakehouse Platform", "Power BI Analytics Pipeline — Special Olympics Belgium", "Operational Reporting Automation Solution"]
+  Data Science:
+    focus: "Python-based analysis, data preparation, statistical insight, predictive analytics, and communicating findings"
+    keywords: ["data science", "Python", "Pandas", "NumPy", "scikit-learn", "machine learning", "Random Forest", "Prophet", "Power BI"]
+    preferred_skill_categories: ["languages_and_tools", "platforms_and_cloud", "bi_and_reporting", "engineering_and_etl"]
+    preferred_projects: ["Climate Change Impact on Global Food Supply", "Housing Price Prediction — Random Forest Regression", "Auckland Cycling Demand Forecasting — Facebook Prophet", "Fraud Detection Model — E-Commerce Transactions", "Gender and Age Detection System", "E-Commerce Lakehouse Platform", "Power BI Analytics Pipeline — Special Olympics Belgium", "Operational KPI and Dashboard Analysis"]
+  Data Engineer:
+    focus: "cloud data platforms, scalable pipelines, lakehouse architecture, orchestration, and data quality"
+    keywords: ["data engineering", "PySpark", "Databricks", "Microsoft Fabric", "Delta Lake", "Azure", "CI/CD"]
+    preferred_skill_categories: ["platforms_and_cloud", "engineering_and_etl", "devops_and_orchestration", "languages_and_tools"]
+    preferred_projects: ["Refrigerator Ships Production ETL Pipeline", "E-Commerce Lakehouse Platform", "Data Pipeline CI/CD DevOps Platform", "Data Quality and Governance Framework"]
+  Data Analyst:
+    focus: "business analysis, SQL, KPI development, Power BI dashboards, data storytelling, and stakeholder communication"
+    keywords: ["data analysis", "Power BI", "SQL", "DAX", "KPI", "business intelligence", "stakeholder management"]
+    preferred_skill_categories: ["bi_and_reporting", "languages_and_tools", "engineering_and_etl", "platforms_and_cloud"]
+    preferred_projects: ["Power BI Analytics Pipeline — Special Olympics Belgium", "E-Commerce Lakehouse Platform", "Operational KPI and Dashboard Analysis", "Operational Reporting Automation Solution"]
+  Functional Analyst (IT):
+    focus: "requirements gathering, functional specifications, stakeholder alignment, process improvement, and reporting solutions"
+    keywords: ["functional analysis", "requirements", "user stories", "business requirements", "process improvement", "Power BI", "stakeholder management"]
+    preferred_skill_categories: ["bi_and_reporting", "engineering_and_etl", "languages_and_tools"]
+    preferred_projects: ["Power BI Analytics Pipeline — Special Olympics Belgium", "E-Commerce Lakehouse Platform", "Operational Reporting Automation Solution", "Data Quality and Governance Framework"]
+
 standard_answers:
   work_authorization: "Authorized to work in Belgium / EU"
   sponsorship_required: "No"
@@ -26,9 +53,12 @@ core_skills:
     - "PySpark"
     - "SQL (Advanced)"
     - "Python (Pandas, NumPy)"
+    - "Python (scikit-learn, Matplotlib)"
+    - "Machine Learning (Random Forest, Prophet)"
     - "DAX"
   bi_and_reporting:
     - "Power BI"
+    - "Tableau"
     - "Power Automate"
     - "Semantic Modelling"
     - "Paginated Reports"
@@ -85,6 +115,54 @@ projects:
       - "Designed a complete data integration and analytics solution for non-profit operations under strict GDPR compliance."
       - "Modelled raw organizational data and presented executive KPI dashboards directly to the CEO."
 
+  - title: "Operational Reporting Automation Solution"
+    tech_stack: "SQL, Power BI, Power Automate"
+    highlights:
+      - "Transformed a 12-week manual reporting workflow into a streamlined, single-click reporting solution."
+      - "Combined SQL data preparation with Power BI and Power Automate to improve reporting efficiency and usability."
+
+  - title: "Operational KPI and Dashboard Analysis"
+    tech_stack: "Power BI, DAX, SQL, Stakeholder Analysis"
+    highlights:
+      - "Designed and delivered interactive Power BI dashboards for 50+ business users."
+      - "Translated stakeholder requirements into KPI definitions, reporting roadmaps, and actionable business insights."
+
+  - title: "Data Quality and Governance Framework"
+    tech_stack: "Data Quality Checks, Data Definitions, Metric Governance"
+    highlights:
+      - "Established automated quality checks achieving 99%+ accuracy for reporting outputs."
+      - "Documented data definitions, metric logic, and business use cases to support consistent reporting and onboarding."
+
+  - title: "Climate Change Impact on Global Food Supply"
+    tech_stack: "Python, Random Forest, Pandas, Data Visualization"
+    highlights:
+      - "Analysed temperature, precipitation, and CO2 concentration effects on global crop production."
+      - "Built a Random Forest regression model and visualized variable importance and uncertainty."
+
+  - title: "Housing Price Prediction — Random Forest Regression"
+    tech_stack: "Python, scikit-learn, Pandas, NumPy, Matplotlib"
+    highlights:
+      - "Built an end-to-end machine learning pipeline with imputation and one-hot encoding without data leakage."
+      - "Trained and evaluated a 300-tree Random Forest Regressor, achieving an R² of 0.817 on unseen test data."
+
+  - title: "Auckland Cycling Demand Forecasting — Facebook Prophet"
+    tech_stack: "Python, Facebook Prophet, Pandas, scikit-learn"
+    highlights:
+      - "Combined daily cycling counts with weather data to forecast cycling demand in Auckland."
+      - "Compared forecasting models with seasonality, holidays, weather regressors, and time-series cross-validation."
+
+  - title: "Fraud Detection Model — E-Commerce Transactions"
+    tech_stack: "Python, scikit-learn, Pandas, Machine Learning"
+    highlights:
+      - "Built a machine learning model to flag suspicious transactions in e-commerce order and payment data."
+      - "Applied pattern detection techniques to identify potentially fraudulent transaction behaviour."
+
+  - title: "Gender and Age Detection System"
+    tech_stack: "Computer Vision, Deep Learning"
+    highlights:
+      - "Built an AI system using computer vision and deep learning to predict approximate age and gender from images or video."
+      - "Applied pre-trained face detection and classification models for real-time predictions."
+
 certifications:
   - name: "Databricks AI Fundamentals"
     issuer: "Databricks"
@@ -101,6 +179,15 @@ education:
   institution: "Thomas More University of Applied Sciences"
   location: "Mechelen, Belgium"
   dates: "2023 - 2026"
+  coursework:
+    - "Data Engineering"
+    - "Database Systems"
+    - "ETL Pipeline Design"
+    - "Data Modelling"
+    - "Statistical Analysis"
+    - "Machine Learning"
+    - "Python Programming"
+    - "Cloud Computing"
 
 languages:
   - "English: Proficient (Professional)"

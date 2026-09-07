@@ -3,3 +3,9 @@ python-dotenv
 PyYAML
 requests
 python-docx
+openpyxl
+beautifulsoup4
+google-api-python-client
+google-auth
+google-auth-oauthlib
+playwright

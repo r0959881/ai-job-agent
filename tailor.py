@@ -4,6 +4,7 @@ import yaml
 from dotenv import load_dotenv
 from groq import Groq
 from generate_doc import create_tailored_cv_docx
+from discovery import TARGET_ROLES, classify_target_role
 
 # 1. Load environment variables (.env file)
 load_dotenv()
@@ -42,23 +43,31 @@ def tailor_cv_for_job(job_id):
 
     title, company, location, url = job
     print(f"🤖 Tailoring CV for: {title} at {company}...")
+    role_family = classify_target_role(title)
 
     resume = load_master_resume()
     if not resume:
         return None
 
+    role_profile = resume.get("role_profiles", {}).get(role_family or "", {})
+
     prompt = f"""
     You are an expert ATS Optimization Agent.
     Target Job Title: {title}
     Company: {company}
+    Target role family: {role_family or 'Choose the closest match'}
+    Available role families: {', '.join(TARGET_ROLES)}
+    Role focus: {role_profile.get('focus', 'Match the job requirements to the master resume facts.')}
+    Priority keywords: {', '.join(role_profile.get('keywords', []))}
     
     My Master Resume Data:
     {yaml.dump(resume, default_flow_style=False)}
     
     Task:
-    1. Write a 3-sentence professional summary tailored specifically to the {title} role.
-    2. Select and rephrase the 4 most relevant work experience bullet points from my master resume to highlight matching skills for {title}.
-    3. CRITICAL RULE: DO NOT invent, fabricate, or assume any experience, skills, company names, or degrees not present in my master resume.
+    1. Identify which target role family best matches the job: Data Integration, Data Science, Data Engineer, Data Analyst, or Functional Analyst (IT).
+    2. Write a 3-sentence professional summary tailored specifically to the {title} role and selected role family.
+    3. Select and rephrase the 4 most relevant work experience bullet points from my master resume to highlight matching skills for {title}.
+    4. CRITICAL RULE: DO NOT invent, fabricate, or assume any experience, skills, company names, or degrees not present in my master resume.
     
     Format your response EXACTLY as:
     SUMMARY: <your 3-sentence summary>
@@ -91,12 +100,15 @@ def tailor_cv_for_job(job_id):
         if not summary:
             summary = tailored_text.strip()
 
-        docx_path = create_tailored_cv_docx(company, title, summary, bullets)
+        docx_path = create_tailored_cv_docx(company, title, summary, bullets, role_family)
         if not docx_path:
             return None
 
         conn = sqlite3.connect("jobs.db")
-        conn.execute("UPDATE jobs SET status = 'processed' WHERE id = ?", (job_id,))
+        conn.execute(
+            "UPDATE jobs SET status = 'processed', cv_path = ? WHERE id = ?",
+            (docx_path, job_id),
+        )
         conn.commit()
         conn.close()
 
