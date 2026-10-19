@@ -25,7 +25,7 @@ TARGET_ROLES = {
         "data pipeline", "data pipelines", "data architect",
     ],
     "Data Analyst": [
-        "data analyst", "bi analyst", "business intelligence",
+        "data analyst", "bi analyst", "bi engineer", "business intelligence",
         "reporting analyst", "analytics specialist",
     ],
     "Functional Analyst (IT)": [
@@ -43,6 +43,14 @@ TARGET_KEYWORDS += [
     "databricks", "pyspark", "fabric", "power bi", "sql", "python",
     "data modelling", "data modeling", "etl", "elt",
 ]
+
+SEARCH_QUERIES = {
+    "Data Integration": ["data integration", "ETL developer"],
+    "Data Science": ["data scientist", "machine learning"],
+    "Data Engineer": ["data engineer", "data platform"],
+    "Data Analyst": ["data analyst", "business intelligence"],
+    "Functional Analyst (IT)": ["functional analyst", "business systems analyst"],
+}
 
 def classify_target_role(title, description=""):
     """Return the closest requested role family for a job listing."""
@@ -97,7 +105,7 @@ def clean_text(raw_html):
 def contains_location_marker(text, markers):
     return any(re.search(rf"\b{re.escape(marker)}\b", text) for marker in markers)
 
-def is_relevant_job(title, description, location=""):
+def is_relevant_job(title, description, location="", allow_non_entry=False):
     title_clean = clean_text(title)
     desc_clean = clean_text(description)
     loc_clean = clean_text(location)
@@ -120,7 +128,9 @@ def is_relevant_job(title, description, location=""):
     has_entry_signal = any(keyword in combined_text for keyword in ENTRY_LEVEL_KEYWORDS)
     has_allowed_experience = bool(EXPERIENCE_PATTERN.search(combined_text))
     
-    return has_tech_match and (has_entry_signal or has_allowed_experience)
+    return has_tech_match and (
+        allow_non_entry or has_entry_signal or has_allowed_experience
+    )
 
 def save_jobs_to_db(jobs, source_type):
     new_jobs_count = 0
@@ -128,14 +138,27 @@ def save_jobs_to_db(jobs, source_type):
     filtered_count = 0
     discovered_at = datetime.now(timezone.utc).isoformat()
     
+    # Both API discovery and Gmail ingestion use this same storage boundary.
+    init_db()
     with sqlite3.connect("jobs.db") as conn:
         for item in jobs:
             title = item.get("title", "") or ""
             company = item.get("company_name", "") or item.get("company", "") or "Unknown"
+            if isinstance(company, dict):
+                company = company.get("display_name", "Unknown")
             description = item.get("description", "") or ""
             location = item.get("location", "") or ""
             
-            if not title or not is_relevant_job(title, description, location):
+            trusted_alert_source = source_type in {
+                "StepStone Belgium", "Jobat Belgium", "VDAB Belgium", "Actiris Brussels",
+                "Indeed Alerts", "LinkedIn Alerts",
+            }
+            if not title or not is_relevant_job(
+                title,
+                description,
+                location,
+                allow_non_entry=trusted_alert_source,
+            ):
                 filtered_count += 1
                 continue
 
@@ -151,18 +174,36 @@ def save_jobs_to_db(jobs, source_type):
             salary_currency = item.get("salary_currency", "") or ""
             posted_at = item.get("created", "") or item.get("date", "") or ""
             
+            source_data = json.dumps(item, default=str)
+            existing_job = conn.execute(
+                "SELECT 1 FROM jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
             try:
                 conn.execute(
                     """INSERT INTO jobs
                     (id, title, company, location, url, source, description,
                      category, contract_type, salary_min, salary_max,
                      salary_currency, posted_at, discovered_at, source_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        source = CASE
+                            WHEN instr('|' || jobs.source || '|', '|' || excluded.source || '|') > 0
+                                THEN jobs.source
+                            ELSE jobs.source || ' | ' || excluded.source
+                        END,
+                        description = CASE WHEN jobs.description = '' THEN excluded.description ELSE jobs.description END,
+                        location = CASE WHEN jobs.location = '' THEN excluded.location ELSE jobs.location END,
+                        url = CASE WHEN jobs.url = '' THEN excluded.url ELSE jobs.url END,
+                        source_data = CASE WHEN jobs.source_data = '' THEN excluded.source_data ELSE jobs.source_data END""",
                     (job_id, title, company, location, job_url, source_type,
                      description, category, contract_type, salary_min, salary_max,
-                     salary_currency, posted_at, discovered_at, json.dumps(item, default=str)),
+                     salary_currency, posted_at, discovered_at, source_data),
                 )
-                new_jobs_count += 1
+                if existing_job:
+                    duplicate_count += 1
+                else:
+                    new_jobs_count += 1
             except sqlite3.IntegrityError:
                 duplicate_count += 1
                 continue
@@ -201,7 +242,10 @@ def fetch_adzuna_belgium(keyword="data engineer", location="belgium", page=1):
     try:
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
-        results = response.json().get("results", [])
+        payload = response.json()
+        results = payload.get("results", [])
+        if not results:
+            print(f"ℹ️ Adzuna returned no listings for '{keyword}' in Belgium.")
         formatted_jobs = [
             {
                 "title": result.get("title", ""),
@@ -220,12 +264,11 @@ def run_discovery():
     init_db()
     print("🇧🇪 Executing Targeted Belgian Job Discovery...\n")
     
-    # Target Junior, Traineeship, and Entry-level searches in Belgium
-    fetch_adzuna_belgium(keyword="junior data engineer", location="belgium")
-    fetch_adzuna_belgium(keyword="junior bi analyst", location="brussels")
-    fetch_adzuna_belgium(keyword="data traineeship", location="belgium")
-    fetch_adzuna_belgium(keyword="junior power bi", location="antwerp")
-    fetch_adzuna_belgium(keyword="data analyst entry level", location="mechelen")
+    # Search every requested role family; the relevance gate below keeps only
+    # Belgian, early-career listings that match the profile.
+    for role, queries in SEARCH_QUERIES.items():
+        for keyword in queries:
+            fetch_adzuna_belgium(keyword=keyword, location="Belgium")
     fetch_arbeitnow_jobs()
 
 if __name__ == "__main__":

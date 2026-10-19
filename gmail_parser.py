@@ -71,15 +71,14 @@ def parse_email_alerts():
 
     print("📬 Connected to Gmail API. Searching for Belgian job alerts...")
 
-    # Gmail braces express OR reliably and newer_than keeps each run bounded.
+    # Search trusted job-alert senders; the relevance filter handles titles and seniority.
     query = (
         'newer_than:2d {from:linkedin.com from:indeed.com '
-        'from:stepstone.be from:jobat.be from:vdab.be from:actiris.brussels} '
-        '{subject:job subject:vacature subject:alert}'
+        'from:stepstone.be from:jobat.be from:vdab.be from:actiris.brussels}'
     )
     
     try:
-        results = service.users().messages().list(userId='me', q=query, maxResults=15).execute()
+        results = service.users().messages().list(userId='me', q=query, maxResults=100).execute()
         messages = results.get('messages', [])
 
         if not messages:
