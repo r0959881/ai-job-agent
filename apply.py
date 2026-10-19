@@ -11,12 +11,15 @@ def load_standard_answers():
         return {}
     return {**data.get("personal_info", {}), **data.get("standard_answers", {})}
 
-def auto_fill_job_application(job_url, docx_path, headless=False, keep_open_seconds=5, report=False):
+def auto_fill_job_application(job_url, docx_path, headless=False, keep_open_seconds=5, report=False,
+                              on_filled=None, wait_for_close=False):
     """
     Launches Chromium, navigates to the job posting, populates basic details,
     attaches the tailored .docx resume, and pauses for user review.
 
     With report=True a dict {"ok", "filled", "error"} is returned instead of a bool.
+    on_filled(result) is called as soon as filling finishes; wait_for_close keeps the
+    window open until the user closes it (the web UI uses both so you can submit yourself).
     """
     from playwright.sync_api import sync_playwright
 
@@ -77,13 +80,19 @@ def auto_fill_job_application(job_url, docx_path, headless=False, keep_open_seco
                     log(f"  ✓ Attached CV: {docx_path}")
 
             log("✅ Form field auto-fill completed.")
-            if keep_open_seconds:
+            if on_filled:
+                on_filled({"ok": True, "filled": filled})
+            if wait_for_close:
+                page.wait_for_event("close", timeout=0)
+            elif keep_open_seconds:
                 time.sleep(keep_open_seconds)
             browser.close()
             return {"ok": True, "filled": filled} if report else True
 
         except Exception as e:
             log(f"⚠️ Form auto-fill warning/error: {e}", level="warning")
+            if on_filled:
+                on_filled({"ok": False, "filled": filled, "error": str(e)})
             browser.close()
             return {"ok": False, "filled": filled, "error": str(e)} if report else False
 
