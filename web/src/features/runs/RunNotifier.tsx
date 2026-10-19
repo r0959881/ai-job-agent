@@ -6,12 +6,21 @@ import { api } from "@/lib/api";
 import { keys, useRunsList } from "@/lib/queries";
 import type { Run } from "@/lib/types";
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** Plain, specific one-line outcome, e.g. "Tailored 4 of 6 CVs. 2 failed because Groq timed out." */
 export function runSummaryText(run: Run) {
-  if (run.status === "failed") return run.error || "The run failed.";
-  if (run.status === "cancelled") return `Cancelled. ${run.tailored} CV(s) were tailored before stopping.`;
-  const parts = [`${run.new} new job(s)`, `${run.tailored} CV(s) tailored`];
-  if (run.failed) parts.push(`${run.failed} failed`);
-  return parts.join(", ") + ".";
+  if (run.status === "failed") return run.error || "The run failed before it finished.";
+  const found = `Found ${plural(run.new, "new job")}`;
+  if (run.status === "cancelled") return `Cancelled by you. ${found}; ${plural(run.tailored, "CV")} tailored before stopping.`;
+  if (run.options?.dry_run) {
+    return `Dry run: ${found.toLowerCase()} and ${run.summary?.eligible ?? 0} eligible in the time window. No CVs were tailored.`;
+  }
+  const attempted = run.tailored + run.failed;
+  if (!attempted) return `${found}. Every eligible job already had a CV.`;
+  const reasons = [...new Set((run.summary?.failures ?? []).map((f) => f.reason))];
+  const failed = run.failed ? ` ${run.failed} failed because ${reasons.join(", ") || "of an error"}.` : "";
+  return `${found}. Tailored ${run.tailored} of ${plural(attempted, "CV")}.${failed}`;
 }
 
 /** Toasts (and a browser notification when the tab is hidden) when an active run finishes. */

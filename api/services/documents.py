@@ -97,3 +97,16 @@ def backfill_documents(db_path=None):
                 counts["removed"] += 1
     return counts
 
+
+
+def document_row(row):
+    """API shape for a documents row: adds file name, size and whether the file still exists."""
+    item = dict(row)
+    path = resolve_project_path(item.get("path") or "")
+    try:
+        stat = path.stat()
+        item["exists"], item["size"] = True, stat.st_size
+    except OSError:
+        item["exists"], item["size"] = False, 0
+    item["name"] = path.name
+    return item

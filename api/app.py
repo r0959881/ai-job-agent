@@ -50,7 +50,7 @@ def _startup():
     threading.Thread(target=backfill, name="document-backfill", daemon=True).start()
 
 
-def create_app(dev_origins=(), run_startup=True):
+def create_app(dev_origins=(), run_startup=True, run_manager=None):
     @contextlib.asynccontextmanager
     async def lifespan(_app):
         if run_startup:
@@ -60,6 +60,14 @@ def create_app(dev_origins=(), run_startup=True):
     app = FastAPI(title="AI Job Agent", version=VERSION, docs_url="/api/docs",
                   openapi_url="/api/openapi.json", lifespan=lifespan)
     app.add_middleware(LocalOnlyMiddleware, token=get_ui_token(), extra_origins=dev_origins)
+    from api.services.runs import RunManager
+
+    app.state.runs = run_manager or RunManager()
+    from api import dev_fakes
+
+    app.state.fake_sources = dev_fakes.install()
+    if app.state.fake_sources:
+        logger.warning("AI_JOB_AGENT_FAKE_SOURCES=1: using offline fake job sources, Groq and Gmail.")
 
     @app.exception_handler(UnsafePath)
     async def unsafe_path(_request: Request, error: UnsafePath):
@@ -72,6 +80,7 @@ def create_app(dev_origins=(), run_startup=True):
             "version": VERSION,
             "database": DB_PATH.exists(),
             "resume": RESUME_PATH.exists(),
+            "fake_sources": app.state.fake_sources,
         }
 
     @app.get("/api/session")
