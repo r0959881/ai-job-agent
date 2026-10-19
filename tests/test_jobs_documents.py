@@ -161,3 +161,13 @@ def test_safe_output_path_rejects_traversal():
     for bad in ("../x", "output/../../x", "C:/Windows/win.ini", "", "/etc/passwd"):
         with pytest.raises(UnsafePath):
             safe_output_path(bad)
+
+
+def test_stats_feed_the_dashboard(client, jobs):
+    stats = client.get("/api/stats").json()
+    funnel = {step["key"]: step["count"] for step in stats["funnel"]}
+    assert funnel == {"discovered": 3, "eligible": 3, "tailored": 1, "applied": 1, "interviewing": 0}
+    assert stats["jobs_last_window"] == 2 and stats["applications_sent"] == 1
+    assert [job["id"] for job in stats["ready_to_apply"]] == ["b"]
+    assert stats["integrations"]["groq"]["status"] == "missing"
+    assert stats["last_run"] is None
