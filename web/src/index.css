@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens. One neutral (slate) scale, one accent (indigo) and four
+ * semantic colours. Components only use these via Tailwind classes, never hex.
+ * Text/background pairs are chosen for WCAG 2.2 AA (4.5:1) contrast.
+ */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 243 75% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 19% 35%;
+    --accent: 226 100% 97%;
+    --accent-foreground: 243 75% 40%;
+    --border: 220 13% 88%;
+    --input: 220 13% 80%;
+    --ring: 243 75% 55%;
+    --sidebar: 220 20% 98%;
+    --sidebar-foreground: 222 47% 11%;
+
+    --success: 142 72% 27%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 142 70% 94%;
+    --warning: 26 90% 35%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 43 96% 92%;
+    --danger: 0 72% 46%;
+    --danger-foreground: 0 0% 100%;
+    --danger-soft: 0 86% 96%;
+    --info: 201 96% 30%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 204 94% 94%;
+
+    --radius: 0.5rem;
+    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.04);
+    --shadow-overlay: 0 10px 30px -10px rgb(15 23 42 / 0.25), 0 4px 10px -4px rgb(15 23 42 / 0.1);
+  }
+
+  .dark {
+    --background: 224 30% 8%;
+    --foreground: 210 40% 96%;
+    --card: 224 28% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 224 28% 12%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 234 89% 74%;
+    --primary-foreground: 234 60% 12%;
+    --secondary: 223 22% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 223 22% 15%;
+    --muted-foreground: 215 20% 70%;
+    --accent: 235 40% 20%;
+    --accent-foreground: 230 90% 86%;
+    --border: 223 18% 22%;
+    --input: 223 16% 30%;
+    --ring: 234 89% 74%;
+    --sidebar: 224 30% 10%;
+    --sidebar-foreground: 210 40% 96%;
+
+    --success: 142 69% 58%;
+    --success-foreground: 142 80% 8%;
+    --success-soft: 142 50% 14%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 30 80% 8%;
+    --warning-soft: 35 60% 14%;
+    --danger: 0 91% 71%;
+    --danger-foreground: 0 70% 10%;
+    --danger-soft: 0 45% 16%;
+    --info: 199 89% 64%;
+    --info-foreground: 200 80% 8%;
+    --info-soft: 201 50% 15%;
+
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  }
+
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  body {
+    @apply bg-background text-body text-foreground;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* DOCX previews rendered by mammoth. */
+.doc-preview {
+  @apply mx-auto max-w-prose text-body leading-relaxed;
+}
+.doc-preview h1,
+.doc-preview h2,
+.doc-preview h3 {
+  @apply mb-2 mt-4 font-semibold;
+}
+.doc-preview p {
+  @apply mb-2;
+}
+.doc-preview ul {
+  @apply mb-2 list-disc pl-6;
+}
+.doc-preview table {
+  @apply my-2 w-full border-collapse;
+}
+.doc-preview td {
+  @apply border p-1;
+}
+
+.cm-editor {
+  @apply h-full text-[13px];
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
