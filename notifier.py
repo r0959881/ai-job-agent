@@ -3,7 +3,15 @@ import smtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
-load_dotenv()
+from config import ENV_PATH, load_resume_file
+
+load_dotenv(ENV_PATH)
+
+
+def _first_name():
+    info = (load_resume_file() or {}).get("personal_info") or {}
+    return (info.get("full_name") or "there").split()[0]
+
 
 def send_telegram_alert(company, title, job_url, docx_path=None):
     """
@@ -25,7 +33,7 @@ def send_telegram_alert(company, title, job_url, docx_path=None):
     msg['To'] = receiver_email
     
     body_content = (
-        f"Hello Ammar,\n\n"
+        f"Hello {_first_name()},\n\n"
         f"Your AI Job Agent has processed a new vacancy:\n\n"
         f"📌 Job Title: {title}\n"
         f"🏢 Company: {company}\n"
@@ -61,6 +69,11 @@ def send_telegram_alert(company, title, job_url, docx_path=None):
     except Exception as e:
         print(f"❌ Failed to send email alert: {e}")
         return False
+
+
+# The function sends an email; this clearer name is used by the web UI.
+send_email_alert = send_telegram_alert
+
 
 if __name__ == "__main__":
     send_telegram_alert("Test Company", "Data Engineer", "https://example.com", None)

@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+# The legacy CLI modules keep their original style; lint the new code.
+include = ["api/**/*.py", "tests/**/*.py", "config.py", "agent_settings.py", "agent_log.py", "serve.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["api"]
+ignore_missing_imports = true
+follow_imports = "silent"
+check_untyped_defs = true

@@ -1,12 +1,14 @@
-import os
 from datetime import date
 
-import yaml
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+
+import agent_settings
+from agent_log import log
+from config import OUTPUT_DIR, PROJECT_ROOT, file_name_slug, load_resume_file, long_path
 
 
 ROLE_LETTERS = {
@@ -43,16 +45,35 @@ ROLE_LETTERS = {
 }
 
 
-def create_cover_letter_docx(role_family):
-    if role_family not in ROLE_LETTERS:
+GENERAL_LETTER = {
+    "opening": "I am writing to express my interest in this opportunity. My background combines hands-on data work, clear communication, and a practical focus on useful outcomes.",
+    "evidence": "My experience and projects are summarised in the attached CV, and I would be glad to walk you through the work that is most relevant to this role.",
+    "fit": "I enjoy learning quickly, collaborating with both technical and business colleagues, and turning requirements into reliable results.",
+    "closing": "I would welcome the opportunity to discuss how I could contribute to your team.",
+}
+
+
+def role_letters():
+    """Editable letters from agent_settings.yaml, falling back to the built-in text."""
+    configured = agent_settings.get("cover_letters") or {}
+    return {**ROLE_LETTERS, **configured}
+
+
+def _safe(text):
+    return "".join(character for character in str(text) if character.isalnum() or character in " _-").strip()
+
+
+def create_cover_letter_docx(role_family, company=None, job_title=None, data=None, output_path=None):
+    """Build a cover letter for a role family, optionally addressed to one job."""
+    letters = role_letters()
+    if role_family not in letters and not company:
         raise ValueError(f"Unknown role family: {role_family}")
 
-    with open("resume_data.yaml", "r", encoding="utf-8") as file:
-        data = yaml.safe_load(file)
+    data = data if data is not None else load_resume_file() or {}
 
     info = data.get("personal_info", {})
     role_profile = data.get("role_profiles", {}).get(role_family, {})
-    letter = ROLE_LETTERS[role_family]
+    letter = letters.get(role_family, GENERAL_LETTER)
     doc = Document()
     navy = RGBColor(31, 62, 99)
     grey = RGBColor(80, 80, 80)
@@ -91,7 +112,7 @@ def create_cover_letter_docx(role_family):
 
     name = doc.add_paragraph()
     name.paragraph_format.space_after = Pt(1)
-    style_run(name.add_run(info.get("full_name", "Ammar Haider").upper()), size=19, bold=True, color=navy)
+    style_run(name.add_run((info.get("full_name") or "").upper()), size=19, bold=True, color=navy)
 
     contact = doc.add_paragraph()
     contact.paragraph_format.space_after = Pt(12)
@@ -107,11 +128,12 @@ def create_cover_letter_docx(role_family):
     recipient = doc.add_paragraph()
     recipient.paragraph_format.space_after = Pt(12)
     style_run(recipient.add_run("Hiring Manager\n"), size=11, bold=True)
-    style_run(recipient.add_run("[Company Name]\n[Company Address]"), size=11, color=grey)
+    style_run(recipient.add_run(f"{company}\n" if company else "[Company Name]\n[Company Address]"), size=11, color=grey)
 
     subject = doc.add_paragraph()
     subject.paragraph_format.space_after = Pt(14)
-    style_run(subject.add_run(f"Subject: Application for {role_family} role"), size=11, bold=True, color=navy)
+    subject_role = job_title or f"{role_family} role"
+    style_run(subject.add_run(f"Subject: Application for {subject_role}"), size=11, bold=True, color=navy)
 
     paragraphs = [
         f"Dear Hiring Manager,\n\n{letter['opening']}",
@@ -128,16 +150,23 @@ def create_cover_letter_docx(role_family):
     closing = doc.add_paragraph()
     closing.paragraph_format.space_before = Pt(4)
     style_run(closing.add_run("Kind regards,\n"), size=11)
-    style_run(closing.add_run(info.get("full_name", "Ammar Haider")), size=11, bold=True, color=navy)
+    style_run(closing.add_run(info.get("full_name") or ""), size=11, bold=True, color=navy)
 
-    os.makedirs("output", exist_ok=True)
-    safe_role = "".join(character for character in role_family if character.isalnum() or character in " _-").strip()
-    path = f"output/Ammar_Haider_Cover_Letter_{safe_role}.docx"
-    doc.save(path)
-    print(f"Cover letter created: {path}")
+    if output_path:
+        doc.save(output_path)
+        return str(output_path)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    prefix = f"{file_name_slug(info.get('full_name'))}_Cover_Letter_"
+    if company:
+        stem = f"{prefix}{_safe(company)}_{_safe(job_title or role_family)}"[:180].rstrip(" ._")
+    else:
+        stem = f"{prefix}{_safe(role_family)}"
+    path = f"output/{stem}.docx"
+    doc.save(long_path(PROJECT_ROOT / path))
+    log(f"Cover letter created: {path}")
     return path
 
 
 if __name__ == "__main__":
-    for role in ROLE_LETTERS:
+    for role in role_letters():
         create_cover_letter_docx(role)

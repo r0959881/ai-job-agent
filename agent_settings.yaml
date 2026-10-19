@@ -1,0 +1,230 @@
+# AI Job Agent search settings. Edit here or in the web UI (Settings -> Search).
+# Any key you delete falls back to the built-in default.
+target_roles:
+  Data Integration:
+  - data integration
+  - integration engineer
+  - etl developer
+  - etl engineer
+  - data ingestion
+  - integration specialist
+  Data Science:
+  - data science
+  - data scientist
+  - machine learning
+  - machine learning engineer
+  - predictive analytics
+  Data Engineer:
+  - data engineer
+  - analytics engineer
+  - data platform
+  - data pipeline
+  - data pipelines
+  - data architect
+  Data Analyst:
+  - data analyst
+  - bi analyst
+  - bi engineer
+  - business intelligence
+  - reporting analyst
+  - analytics specialist
+  Functional Analyst (IT):
+  - functional analyst
+  - it functional analyst
+  - business systems analyst
+  - requirements analyst
+  - functional consultant
+extra_keywords:
+- databricks
+- pyspark
+- fabric
+- power bi
+- sql
+- python
+- data modelling
+- data modeling
+- etl
+- elt
+search_queries:
+  Data Integration:
+  - data integration
+  - ETL developer
+  Data Science:
+  - data scientist
+  - machine learning
+  Data Engineer:
+  - data engineer
+  - data platform
+  Data Analyst:
+  - data analyst
+  - business intelligence
+  Functional Analyst (IT):
+  - functional analyst
+  - business systems analyst
+entry_level_keywords:
+- junior
+- trainee
+- traineeship
+- intern
+- internship
+- graduate
+- starter
+- entry level
+- entry-level
+- early career
+exclude_title_keywords:
+- director
+- senior manager
+- head of
+- lead
+- vp
+- chief
+- principal
+- senior
+- manager
+- paid search
+- marketing manager
+- sales executive
+- recruiter
+- hr manager
+- account manager
+allowed_locations:
+- belgium
+- belgië
+- belgique
+- mechelen
+- antwerp
+- antwerpen
+- brussels
+- bruxelles
+- ghent
+- gent
+- leuven
+- flanders
+- vlaanderen
+- netherlands
+- nederland
+- amsterdam
+- rotterdam
+- utrecht
+- eindhoven
+blocked_locations:
+- germany
+- deutschland
+- düsseldorf
+- dusseldorf
+- berlin
+- munich
+- münchen
+- frankfurt
+- hamburg
+- cologne
+- köln
+- stuttgart
+- france
+- paris
+- uk
+- united kingdom
+- england
+- scotland
+- wales
+- london
+- manchester
+- birmingham
+- leeds
+- edinburgh
+- glasgow
+- bristol
+trusted_alert_sources:
+- StepStone Belgium
+- Jobat Belgium
+- VDAB Belgium
+- Actiris Brussels
+- Indeed Alerts
+- LinkedIn Alerts
+time_window_hours: 48
+sources:
+  adzuna: true
+  arbeitnow: true
+  gmail: true
+adzuna:
+  country: be
+  location: Belgium
+  results_per_page: 50
+gmail:
+  senders:
+  - linkedin.com
+  - indeed.com
+  - stepstone.be
+  - jobat.be
+  - vdab.be
+  - actiris.brussels
+  lookback_days: 2
+  max_results: 100
+cover_letters:
+  Data Integration:
+    opening: I am writing to express my interest in Data Integration opportunities. My experience combines
+      ETL and ELT development, SQL data preparation, source-system integration, data quality, and reporting
+      delivery.
+    evidence: In my project work, I integrated IoT sensor and fleet API data into Delta Lake, unified
+      five source systems into Medallion data layers, and designed a Python, MySQL, and Power BI solution
+      under GDPR requirements. I also transformed a 12-week manual reporting workflow into a single-click
+      Power BI and Power Automate solution.
+    fit: I would bring a practical understanding of how reliable ingestion, modelling, validation, and
+      reporting work together. I am comfortable working across technical and business teams, documenting
+      data definitions, and translating requirements into useful data solutions.
+    closing: I would welcome the opportunity to discuss how my ETL, SQL, cloud data, and data quality
+      experience could support your integration initiatives.
+  Data Science:
+    opening: I am writing to express my interest in Data Science opportunities. My background combines
+      Python, statistical analysis, machine learning, data preparation, visualization, and practical data
+      engineering experience.
+    evidence: My project work includes Random Forest analysis of climate and crop-production data, a housing-price
+      prediction pipeline with an R2 of 0.817 on unseen data, Auckland cycling-demand forecasting with
+      Facebook Prophet, fraud detection, and a computer-vision project. Alongside this, I have built reporting
+      pipelines and Power BI dashboards using Databricks and Microsoft Fabric.
+    fit: These projects have strengthened my ability to prepare data carefully, evaluate models, interpret
+      results, and communicate findings clearly. My professional experience also taught me to connect
+      analytical work to stakeholder requirements and decision-ready reporting.
+    closing: I would welcome the opportunity to discuss how my analytical foundation, curiosity, and hands-on
+      project experience could contribute to your data science team.
+  Data Engineer:
+    opening: I am writing to express my interest in Data Engineering opportunities. I have practical experience
+      with Azure Databricks, PySpark, Delta Lake, Microsoft Fabric, ETL and ELT pipelines, data quality,
+      and CI/CD.
+    evidence: I built a pipeline that ingested more than 50,000 daily IoT sensor and fleet API records
+      into Delta Lake, unified five source systems into Medallion data layers, and implemented automated
+      data quality checks. I also created GitHub Actions pipelines for PySpark testing and infrastructure-as-code
+      scripts that reduced manual setup time by 80 percent.
+    fit: I enjoy building data platforms that are reliable, observable, and useful to the people who depend
+      on them. My experience collaborating with stakeholders helps me connect technical implementation
+      with clear business requirements and measurable outcomes.
+    closing: I would welcome the opportunity to discuss how my cloud data platform, pipeline, and automation
+      experience could support your engineering team.
+  Data Analyst:
+    opening: I am writing to express my interest in Data Analyst opportunities. My experience combines
+      SQL, Power BI, DAX, KPI development, data modelling, reporting automation, and stakeholder communication.
+    evidence: I designed interactive Power BI dashboards for more than 50 business users, wrote SQL queries
+      to clean and shape operational data, and translated stakeholder requirements into KPI definitions
+      and reporting roadmaps. I also modelled organizational data and presented executive KPI dashboards
+      directly to the CEO.
+    fit: I focus on making complex information understandable and actionable. From improving a 12-week
+      manual reporting process to documenting metric logic and business use cases, I have learned to combine
+      technical accuracy with clear communication and user adoption.
+    closing: I would welcome the opportunity to discuss how my analytical, reporting, and stakeholder-facing
+      experience could contribute to your team.
+  Functional Analyst (IT):
+    opening: I am writing to express my interest in Functional Analyst opportunities in IT. My experience
+      includes requirements gathering, functional specifications, user stories, stakeholder alignment,
+      reporting solutions, and process improvement.
+    evidence: At Estée Lauder Companies, I translated strategic goals into functional specifications,
+      user stories, KPI definitions, and reporting roadmaps. I worked as a liaison between business and
+      technical teams, guided users through iterative reviews, and helped deliver a single-click Power
+      BI and Power Automate solution that replaced a 12-week manual workflow.
+    fit: I am comfortable asking clarifying questions, documenting processes and data definitions, and
+      keeping delivery connected to the needs of users. My technical foundation in SQL, Python, Power
+      BI, and data platforms also helps me communicate effectively with engineering teams.
+    closing: I would welcome the opportunity to discuss how my functional analysis, data, and stakeholder-management
+      experience could support your IT initiatives.
+alerts:
+  smtp_enabled: false

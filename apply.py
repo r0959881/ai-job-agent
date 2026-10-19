@@ -1,33 +1,39 @@
-import os
 import time
-import yaml
-import sqlite3
-from playwright.sync_api import sync_playwright
+
+from agent_log import log
+from config import load_resume_file, resolve_project_path
+from database import connect
 
 def load_standard_answers():
     """Loads default responses for standard candidate questions."""
-    if not os.path.exists("resume_data.yaml"):
+    data = load_resume_file()
+    if data is None:
         return {}
-    with open("resume_data.yaml", "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-        return {**data.get("personal_info", {}), **data.get("standard_answers", {})}
+    return {**data.get("personal_info", {}), **data.get("standard_answers", {})}
 
-def auto_fill_job_application(job_url, docx_path, headless=False):
+def auto_fill_job_application(job_url, docx_path, headless=False, keep_open_seconds=5, report=False):
     """
     Launches Chromium, navigates to the job posting, populates basic details,
     attaches the tailored .docx resume, and pauses for user review.
+
+    With report=True a dict {"ok", "filled", "error"} is returned instead of a bool.
     """
+    from playwright.sync_api import sync_playwright
+
     answers = load_standard_answers()
-    print(f"\n🤖 Launching Form Submitter for: {job_url}")
+    filled = []
+    log(f"\n🤖 Launching Form Submitter for: {job_url}")
+    if docx_path:
+        docx_path = str(resolve_project_path(docx_path))
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless, slow_mo=300)
         page = browser.new_page()
-        
+
         try:
             page.goto(job_url, timeout=60000)
             page.wait_for_load_state("domcontentloaded")
-            print("🌐 Page loaded. Filling available application fields...")
+            log("🌐 Page loaded. Filling available application fields...")
 
             # 1. Full Name
             full_name = answers.get("full_name", "")
@@ -36,7 +42,8 @@ def auto_fill_job_application(job_url, docx_path, headless=False):
                     locator = page.locator(selector).first
                     if locator.count() > 0 and locator.is_visible():
                         locator.fill(full_name)
-                        print("  ✓ Name filled")
+                        filled.append("name")
+                        log("  ✓ Name filled")
                         break
 
             # 2. Email Address
@@ -46,7 +53,8 @@ def auto_fill_job_application(job_url, docx_path, headless=False):
                     locator = page.locator(selector).first
                     if locator.count() > 0 and locator.is_visible():
                         locator.fill(email)
-                        print("  ✓ Email filled")
+                        filled.append("email")
+                        log("  ✓ Email filled")
                         break
 
             # 3. Phone Number
@@ -56,28 +64,31 @@ def auto_fill_job_application(job_url, docx_path, headless=False):
                     locator = page.locator(selector).first
                     if locator.count() > 0 and locator.is_visible():
                         locator.fill(phone)
-                        print("  ✓ Phone filled")
+                        filled.append("phone")
+                        log("  ✓ Phone filled")
                         break
 
             # 4. Attach Resume Document (.docx)
-            if docx_path and os.path.exists(docx_path):
+            if docx_path and resolve_project_path(docx_path).exists():
                 file_input = page.locator("input[type='file']").first
                 if file_input.count() > 0:
                     file_input.set_input_files(docx_path)
-                    print(f"  ✓ Attached CV: {docx_path}")
+                    filled.append("cv")
+                    log(f"  ✓ Attached CV: {docx_path}")
 
-            print("✅ Form field auto-fill completed.")
-            time.sleep(5)
+            log("✅ Form field auto-fill completed.")
+            if keep_open_seconds:
+                time.sleep(keep_open_seconds)
             browser.close()
-            return True
+            return {"ok": True, "filled": filled} if report else True
 
         except Exception as e:
-            print(f"⚠️ Form auto-fill warning/error: {e}")
+            log(f"⚠️ Form auto-fill warning/error: {e}", level="warning")
             browser.close()
-            return False
+            return {"ok": False, "filled": filled, "error": str(e)} if report else False
 
 if __name__ == "__main__":
-    conn = sqlite3.connect("jobs.db")
+    conn = connect()
     cursor = conn.cursor()
     cursor.execute("SELECT url FROM jobs WHERE status = 'processed' LIMIT 1")
     row = cursor.fetchone()

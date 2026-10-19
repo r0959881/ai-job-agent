@@ -6,3 +6,17 @@ token.json
 jobs.db
 __pycache__/
 output/*
+desktop.ini
+.ui_token
+.gmail_state.json
+backups/
+output/runs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+web/node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+*.tmp

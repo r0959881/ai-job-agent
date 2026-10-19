@@ -1,0 +1,7 @@
+-r requirements.txt
+pytest>=9.1,<10
+httpx>=0.28,<1
+ruff>=0.17,<1
+mypy>=2.4,<3
+types-PyYAML
+types-requests

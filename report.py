@@ -6,6 +6,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from config import OUTPUT_DIR, file_name_slug, relative_to_project, resolve_project_path
+
 
 REPORT_COLUMNS = [
     ("Job ID", "id"),
@@ -27,17 +29,26 @@ REPORT_COLUMNS = [
 ]
 
 
-def find_existing_cv(job, output_directory="output"):
-    """Find a previously generated CV when older database rows have no cv_path."""
-    saved_path = job.get("cv_path")
-    if saved_path and Path(saved_path).exists():
-        return saved_path
-
+def cv_prefix_for_job(job, full_name=None):
     company = "".join(c for c in str(job.get("company", "")) if c.isalnum() or c in (" ", "_"))
     title = "".join(c for c in str(job.get("title", "")) if c.isalnum() or c in (" ", "_"))
-    prefix = f"Ammar_Haider_CV_{company}_{title}".strip()
-    candidates = sorted(Path(output_directory).glob(f"{prefix}*.docx"))
-    return str(candidates[0]) if candidates else ""
+    return f"{file_name_slug(full_name)}_CV_{company}_{title}".strip()
+
+
+def find_existing_cv(job, output_directory=None, full_name=None):
+    """Find a previously generated CV when older database rows have no cv_path."""
+    saved_path = job.get("cv_path")
+    if saved_path and resolve_project_path(saved_path).exists():
+        return saved_path
+
+    prefix = cv_prefix_for_job(job, full_name)
+    directory = Path(output_directory) if output_directory else OUTPUT_DIR
+    candidates = sorted(directory.glob(f"{glob_escape(prefix)}*.docx"))
+    return relative_to_project(candidates[0]) if candidates else ""
+
+
+def glob_escape(text):
+    return "".join(f"[{c}]" if c in "[]*?" else c for c in text)
 
 
 def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
@@ -69,7 +80,7 @@ def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
         if url_cell.value:
             url_cell.hyperlink = url_cell.value
             url_cell.style = "Hyperlink"
-        cv_path = Path(str(cv_cell.value)) if cv_cell.value else None
+        cv_path = resolve_project_path(str(cv_cell.value)) if cv_cell.value else None
         if cv_path and cv_path.exists():
             # A local URI avoids SharePoint treating the sibling filename as a web route.
             cv_cell.hyperlink = cv_path.resolve().as_uri()
@@ -112,6 +123,7 @@ def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
         excluded.freeze_panes = "A2"
         excluded.auto_filter.ref = excluded.dimensions
 
-    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    workbook.save(output_path)
+    target = resolve_project_path(output_path)
+    os.makedirs(target.parent, exist_ok=True)
+    workbook.save(target)
     return output_path

@@ -1,21 +1,30 @@
-import os
-import yaml
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-def create_tailored_cv_docx(company_name, job_title, tailored_summary, tailored_bullets, role_family=None):
-    """Generates a professional .docx CV formatted for ATS parsers."""
+from agent_log import log
+from config import OUTPUT_DIR, PROJECT_ROOT, file_name_slug, load_resume_file, long_path
+
+
+def cv_filename_prefix(full_name=None):
+    return f"{file_name_slug(full_name)}_CV_"
+
+def create_tailored_cv_docx(company_name, job_title, tailored_summary, tailored_bullets, role_family=None,
+                            data=None, output_path=None):
+    """Generates a professional .docx CV formatted for ATS parsers.
+
+    `data` overrides resume_data.yaml (used for previews of unsaved edits) and
+    `output_path` overrides the output/ file name.
+    """
     
     # Load master profile info
-    if not os.path.exists("resume_data.yaml"):
-        print("❌ Error: resume_data.yaml not found!")
-        return None
-
-    with open("resume_data.yaml", "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    if data is None:
+        data = load_resume_file()
+        if data is None:
+            log("❌ Error: resume_data.yaml not found!", level="error")
+            return None
 
     role_profile = data.get("role_profiles", {}).get(role_family or "", {})
         
@@ -62,7 +71,7 @@ def create_tailored_cv_docx(company_name, job_title, tailored_summary, tailored_
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     title_p.paragraph_format.space_after = Pt(1)
-    run_name = title_p.add_run(info.get("full_name", "Ammar Haider").upper())
+    run_name = title_p.add_run((info.get("full_name") or "").upper())
     set_run_font(run_name, size=19, bold=True, color=navy)
     
     contact_p = doc.add_paragraph()
@@ -203,18 +212,21 @@ def create_tailored_cv_docx(company_name, job_title, tailored_summary, tailored_
             set_run_font(p_cert.add_run(f"• {cert}"), size=9.5)
 
     # Save Document
-    os.makedirs("output", exist_ok=True)
+    if output_path:
+        doc.save(output_path)
+        return str(output_path)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     clean_company = "".join(c for c in str(company_name) if c.isalnum() or c in (' ', '_')).strip()
     clean_title = "".join(c for c in str(job_title) if c.isalnum() or c in (' ', '_')).strip()
     # Keep generated paths below Windows' maximum path length.
-    filename_prefix = "Ammar_Haider_CV_"
+    filename_prefix = cv_filename_prefix(info.get("full_name"))
     max_stem_length = 180 - len(filename_prefix)
     filename_stem = f"{filename_prefix}{clean_company}_{clean_title}"[:max_stem_length]
     filename_stem = filename_stem.rstrip(" ._")
     
     file_path = f"output/{filename_stem}.docx"
-    doc.save(file_path)
-    print(f"📄 Word Document created successfully: {file_path}")
+    doc.save(long_path(PROJECT_ROOT / file_path))
+    log(f"📄 Word Document created successfully: {file_path}")
     return file_path
 
 if __name__ == "__main__":

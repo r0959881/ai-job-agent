@@ -1,5 +1,5 @@
-from main import run_agent
+from main import cli
 
 
 if __name__ == "__main__":
-    run_agent()
+    cli()
