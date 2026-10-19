@@ -116,15 +116,15 @@ def _sibling_style(container):
 
 def _fresh(value, style_hint=None):
     if isinstance(value, dict):
-        node = CommentedMap()
+        mapping = CommentedMap()
         for key, item in value.items():
-            node[key] = _fresh(item, style_hint)
-        return node
+            mapping[key] = _fresh(item, style_hint)
+        return mapping
     if isinstance(value, list):
-        node = CommentedSeq()
+        sequence = CommentedSeq()
         for item in value:
-            node.append(_fresh(item, style_hint))
-        return node
+            sequence.append(_fresh(item, style_hint))
+        return sequence
     if isinstance(value, str) and isinstance(style_hint, DoubleQuotedScalarString | SingleQuotedScalarString):
         return _styled(style_hint, value)
     return value
@@ -206,7 +206,7 @@ LABELS = {
 
 
 def list_backups():
-    items = []
+    items: list[dict] = []
     if not RESUME_BACKUPS.exists():
         return items
     for file in sorted(RESUME_BACKUPS.glob("resume_*.yaml"), reverse=True):

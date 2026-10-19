@@ -12,7 +12,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export function runSummaryText(run: Run) {
   if (run.status === "failed") return run.error || "The run failed before it finished.";
   const found = `Found ${plural(run.new, "new job")}`;
-  if (run.status === "cancelled") return `Cancelled by you. ${found}; ${plural(run.tailored, "CV")} tailored before stopping.`;
+  if (run.status === "cancelled")
+    return `Cancelled by you. ${found}; ${plural(run.tailored, "CV")} tailored before stopping.`;
   if (run.options?.dry_run) {
     return `Dry run: ${found.toLowerCase()} and ${run.summary?.eligible ?? 0} eligible in the time window. No CVs were tailored.`;
   }
@@ -43,7 +44,8 @@ export function RunNotifier() {
         queryClient.invalidateQueries({ queryKey: keys.stats });
         const title = `Run #${run.id} ${run.status}`;
         const description = runSummaryText(run);
-        const show = run.status === "succeeded" ? toast.success : run.status === "failed" ? toast.error : toast.warning;
+        const show =
+          run.status === "succeeded" ? toast.success : run.status === "failed" ? toast.error : toast.warning;
         show(title, { description, action: { label: "View", onClick: () => navigate(`/runs/${run.id}`) } });
         if (document.hidden && "Notification" in window && Notification.permission === "granted") {
           const note = new Notification(title, { body: description, tag: `run-${run.id}` });

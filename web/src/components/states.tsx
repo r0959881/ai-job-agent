@@ -85,7 +85,11 @@ export function SkeletonRows({ rows = 6, className }: { rows?: number; className
 
 export function SkeletonCards({ count = 4, className }: { count?: number; className?: string }) {
   return (
-    <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)} aria-busy="true" aria-label="Loading">
+    <div
+      className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}
+      aria-busy="true"
+      aria-label="Loading"
+    >
       {Array.from({ length: count }).map((_, index) => (
         <Card key={index} className="space-y-3 p-4">
           <Skeleton className="h-4 w-1/2" />

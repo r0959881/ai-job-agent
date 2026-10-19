@@ -3,7 +3,13 @@ import { diffLines, withContext } from "@/lib/diff";
 describe("diffLines", () => {
   it("marks added and removed lines", () => {
     const result = diffLines("a\nb\nc", "a\nB\nc\nd");
-    expect(result.map((l) => `${l.type}:${l.text}`)).toEqual(["same:a", "remove:b", "add:B", "same:c", "add:d"]);
+    expect(result.map((l) => `${l.type}:${l.text}`)).toEqual([
+      "same:a",
+      "remove:b",
+      "add:B",
+      "same:c",
+      "add:d",
+    ]);
   });
 
   it("ignores a missing trailing newline and CRLF", () => {

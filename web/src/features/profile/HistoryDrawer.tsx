@@ -67,7 +67,9 @@ export function HistoryDrawer({
       description: (
         <>
           <p>Your resume will be replaced with the version from {formatAbsolute(item.created_at)}.</p>
-          {dirty && <p className="mt-2 font-medium text-warning">Your unsaved edits in the form will be lost.</p>}
+          {dirty && (
+            <p className="mt-2 font-medium text-warning">Your unsaved edits in the form will be lost.</p>
+          )}
         </>
       ),
       confirmLabel: "Restore",
@@ -80,14 +82,20 @@ export function HistoryDrawer({
       <SheetContent className="max-w-4xl">
         <div className="border-b p-4 pr-12">
           <SheetTitle>History</SheetTitle>
-          <SheetDescription>The last 20 versions of resume_data.yaml. A copy is kept before every save.</SheetDescription>
+          <SheetDescription>
+            The last 20 versions of resume_data.yaml. A copy is kept before every save.
+          </SheetDescription>
         </div>
         <div className="grid min-h-0 flex-1 md:grid-cols-[16rem_1fr]">
           <div className="overflow-y-auto border-b p-2 md:border-b-0 md:border-r">
             {backups.isPending && <SkeletonRows rows={5} />}
             {backups.isError && <ErrorState error={backups.error} onRetry={() => backups.refetch()} />}
             {backups.data?.length === 0 && (
-              <EmptyState icon={History} title="No backups yet" description="Save your profile once to start a history." />
+              <EmptyState
+                icon={History}
+                title="No backups yet"
+                description="Save your profile once to start a history."
+              />
             )}
             <ul className="space-y-1">
               {backups.data?.map((item) => (
@@ -112,7 +120,9 @@ export function HistoryDrawer({
             {selected && backups.data && (
               <div className="flex items-center justify-between gap-2 border-b p-3">
                 <p className="text-body text-muted-foreground">
-                  {changes === 0 ? "Identical to the current version." : `${changes} changed line(s) since this version.`}{" "}
+                  {changes === 0
+                    ? "Identical to the current version."
+                    : `${changes} changed line(s) since this version.`}{" "}
                   <span className="text-success">+ now</span> / <span className="text-danger">− backup</span>
                 </p>
                 <Button
@@ -147,7 +157,9 @@ export function HistoryDrawer({
                     <span aria-hidden className="mr-2 select-none">
                       {line.type === "add" ? "+" : line.type === "remove" ? "−" : " "}
                     </span>
-                    <span className="sr-only">{line.type === "add" ? "Added: " : line.type === "remove" ? "Removed: " : ""}</span>
+                    <span className="sr-only">
+                      {line.type === "add" ? "Added: " : line.type === "remove" ? "Removed: " : ""}
+                    </span>
                     {line.text}
                   </div>
                 ),

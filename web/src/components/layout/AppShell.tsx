@@ -14,6 +14,7 @@ import * as React from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { RunControl } from "@/components/layout/RunControl";
+import { Shortcuts } from "@/components/layout/Shortcuts";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/primitives";
@@ -187,6 +188,7 @@ export function AppShell() {
         </main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <Shortcuts />
     </div>
   );
 }

@@ -4,7 +4,13 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/confirm";
 import { ErrorState, SkeletonRows } from "@/components/states";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/overlays";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/overlays";
 import { api } from "@/lib/api";
 import type { DocumentItem } from "@/lib/types";
 
@@ -43,7 +49,8 @@ export function useDocumentActions() {
   });
   const open = useMutation({
     mutationFn: (doc: DocumentItem) => api.post(`/api/documents/${doc.id}/open`),
-    onSuccess: (_result, doc) => toast.success(`Opening ${doc.name}`, { description: "It opens in Word on this computer." }),
+    onSuccess: (_result, doc) =>
+      toast.success(`Opening ${doc.name}`, { description: "It opens in Word on this computer." }),
     onError: (error: Error) => toast.error("Could not open the file", { description: error.message }),
   });
   const confirmDelete = async (doc: DocumentItem) => {
@@ -77,7 +84,10 @@ export function DocumentPreviewDialog({
     queryFn: () => api.get<{ html: string }>(`/api/documents/${document!.id}/preview`),
     enabled: Boolean(document) && document?.kind !== "report",
   });
-  const canRegenerate = document && (document.kind === "cv" || document.kind === "cover_letter") && (document.job_id || document.role_family);
+  const canRegenerate =
+    document &&
+    (document.kind === "cv" || document.kind === "cover_letter") &&
+    (document.job_id || document.role_family);
 
   return (
     <Dialog open={Boolean(document)} onOpenChange={onOpenChange}>
@@ -85,18 +95,32 @@ export function DocumentPreviewDialog({
         {document && (
           <>
             <DialogHeader>
-              <DialogTitle>{document.job_title ? `${KIND_LABEL[document.kind]}: ${document.job_title}` : KIND_LABEL[document.kind]}</DialogTitle>
+              <DialogTitle>
+                {document.job_title
+                  ? `${KIND_LABEL[document.kind]}: ${document.job_title}`
+                  : KIND_LABEL[document.kind]}
+              </DialogTitle>
               <DialogDescription className="break-all">{document.name}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-wrap gap-2">
               <a className={buttonVariants({ size: "sm" })} href={`/api/documents/${document.id}/download`}>
                 <Download /> Download
               </a>
-              <Button size="sm" variant="outline" onClick={() => actions.open.mutate(document)} loading={actions.open.isPending}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => actions.open.mutate(document)}
+                loading={actions.open.isPending}
+              >
                 <ExternalLink /> Open in Word
               </Button>
               {canRegenerate && (
-                <Button size="sm" variant="outline" onClick={() => actions.regenerate.mutate(document)} loading={actions.regenerate.isPending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => actions.regenerate.mutate(document)}
+                  loading={actions.regenerate.isPending}
+                >
                   <RefreshCw /> Regenerate
                 </Button>
               )}
@@ -113,7 +137,9 @@ export function DocumentPreviewDialog({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/40 p-4">
               {document.kind === "report" ? (
-                <p className="text-body text-muted-foreground">Excel reports cannot be previewed here. Download or open it in Excel.</p>
+                <p className="text-body text-muted-foreground">
+                  Excel reports cannot be previewed here. Download or open it in Excel.
+                </p>
               ) : preview.isPending ? (
                 <SkeletonRows rows={10} />
               ) : preview.isError ? (

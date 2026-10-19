@@ -17,7 +17,10 @@ export function LogConsole({ lines, live }: { lines: LogLine[]; live: boolean })
   const [levels, setLevels] = React.useState<Set<LogLevel>>(new Set(["info", "warning", "error"]));
   const scroller = React.useRef<HTMLDivElement>(null);
   const visible = lines.filter((line) => levels.has(line.level));
-  const counts = { warning: lines.filter((l) => l.level === "warning").length, error: lines.filter((l) => l.level === "error").length };
+  const counts = {
+    warning: lines.filter((l) => l.level === "warning").length,
+    error: lines.filter((l) => l.level === "error").length,
+  };
 
   React.useEffect(() => {
     if (!paused && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -52,7 +55,9 @@ export function LogConsole({ lines, live }: { lines: LogLine[]; live: boolean })
                 }
               />
               {label}
-              {level !== "info" && counts[level] > 0 && <span className="tabular text-muted-foreground">({counts[level]})</span>}
+              {level !== "info" && counts[level] > 0 && (
+                <span className="tabular text-muted-foreground">({counts[level]})</span>
+              )}
             </label>
           ))}
         </div>
@@ -78,7 +83,11 @@ export function LogConsole({ lines, live }: { lines: LogLine[]; live: boolean })
           if (live && event.deltaY < 0 && !paused) setPaused(true);
         }}
       >
-        {visible.length === 0 && <p className="text-muted-foreground">{live ? "Waiting for output…" : "No log lines match the filters."}</p>}
+        {visible.length === 0 && (
+          <p className="text-muted-foreground">
+            {live ? "Waiting for output…" : "No log lines match the filters."}
+          </p>
+        )}
         {visible.map((line) => (
           <div
             key={line.seq}

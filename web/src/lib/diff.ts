@@ -40,7 +40,8 @@ export function withContext(lines: DiffLine[], context = 3): (DiffLine | { type:
   const keep = new Array(lines.length).fill(false);
   lines.forEach((line, index) => {
     if (line.type !== "same") {
-      for (let k = Math.max(0, index - context); k <= Math.min(lines.length - 1, index + context); k++) keep[k] = true;
+      for (let k = Math.max(0, index - context); k <= Math.min(lines.length - 1, index + context); k++)
+        keep[k] = true;
     }
   });
   const out: (DiffLine | { type: "gap"; count: number })[] = [];

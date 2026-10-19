@@ -71,15 +71,24 @@ function Step({
 }) {
   return (
     <li className="relative flex gap-4 pb-6 last:pb-0">
-      <span aria-hidden className="absolute left-[15px] top-9 h-[calc(100%-2.25rem)] w-px bg-border last:hidden" />
+      <span
+        aria-hidden
+        className="absolute left-[15px] top-9 h-[calc(100%-2.25rem)] w-px bg-border last:hidden"
+      />
       <button
         type="button"
         onClick={onToggle}
         className="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full bg-background"
-        aria-label={done ? `Mark step ${index}, ${title}, as not done` : `Mark step ${index}, ${title}, as done`}
+        aria-label={
+          done ? `Mark step ${index}, ${title}, as not done` : `Mark step ${index}, ${title}, as done`
+        }
         aria-pressed={done}
       >
-        {done ? <CheckCircle2 className="size-7 text-success" /> : <Circle className="size-7 text-muted-foreground" />}
+        {done ? (
+          <CheckCircle2 className="size-7 text-success" />
+        ) : (
+          <Circle className="size-7 text-muted-foreground" />
+        )}
       </button>
       <div className="min-w-0 flex-1 space-y-3 pt-1">
         <div>
@@ -114,17 +123,24 @@ function CvEditor({ job, onDone }: { job: JobDetail; onDone: (job: JobDetail) =>
   if (!content) {
     return (
       <Button variant="outline" size="sm" onClick={() => draft.mutate()} loading={draft.isPending}>
-        <Pencil /> {draft.isPending ? "Asking Groq (about 10 seconds)…" : "Edit summary & bullets before generating"}
+        <Pencil />{" "}
+        {draft.isPending ? "Asking Groq (about 10 seconds)…" : "Edit summary & bullets before generating"}
       </Button>
     );
   }
   return (
     <Card className="space-y-4 p-4">
       <p className="text-caption text-muted-foreground">
-        Groq drafted this from your resume. Edit anything, then build the Word file. Only facts from your resume are used.
+        Groq drafted this from your resume. Edit anything, then build the Word file. Only facts from your
+        resume are used.
       </p>
       <Field label="Professional summary" htmlFor="cv-summary">
-        <Textarea id="cv-summary" rows={4} value={content.summary} onChange={(e) => setContent({ ...content, summary: e.target.value })} />
+        <Textarea
+          id="cv-summary"
+          rows={4}
+          value={content.summary}
+          onChange={(e) => setContent({ ...content, summary: e.target.value })}
+        />
       </Field>
       <Field label="Role-matched highlights">
         <StringListEditor
@@ -160,7 +176,9 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
   };
   const toggle = (key: StepKey) => () => mark(key, !checklist[key]);
 
-  const cvDoc = job.documents.find((d) => d.kind === "cv" && d.exists && d.path === job.cv_path) ?? job.documents.find((d) => d.kind === "cv" && d.exists);
+  const cvDoc =
+    job.documents.find((d) => d.kind === "cv" && d.exists && d.path === job.cv_path) ??
+    job.documents.find((d) => d.kind === "cv" && d.exists);
   const letterDoc = job.documents.find((d) => d.kind === "cover_letter" && d.exists);
 
   const tailor = useMutation({
@@ -172,20 +190,30 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
     onError: (error: Error) => toast.error("Tailoring failed", { description: error.message }),
   });
   const letter = useMutation({
-    mutationFn: () => api.post<{ path: string; job: JobDetail }>(`/api/jobs/${job.id}/cover-letter`, { company: company || null }),
+    mutationFn: () =>
+      api.post<{ path: string; job: JobDetail }>(`/api/jobs/${job.id}/cover-letter`, {
+        company: company || null,
+      }),
     onSuccess: (result) => {
       toast.success("Cover letter created");
       setJob(result.job);
     },
-    onError: (error: Error) => toast.error("The cover letter was not created", { description: error.message }),
+    onError: (error: Error) =>
+      toast.error("The cover letter was not created", { description: error.message }),
   });
   const autofill = useMutation({
-    mutationFn: () => api.post<{ ok: boolean; filled: string[]; error?: string }>(`/api/jobs/${job.id}/autofill`),
+    mutationFn: () =>
+      api.post<{ ok: boolean; filled: string[]; error?: string }>(`/api/jobs/${job.id}/autofill`),
     onSuccess: (result) => {
       if (result.ok) {
-        toast.success(result.filled.length ? `Filled: ${result.filled.join(", ")}` : "The page opened, but no form fields were recognised", {
-          description: "Review everything in the browser window and submit it yourself.",
-        });
+        toast.success(
+          result.filled.length
+            ? `Filled: ${result.filled.join(", ")}`
+            : "The page opened, but no form fields were recognised",
+          {
+            description: "Review everything in the browser window and submit it yourself.",
+          },
+        );
       } else {
         toast.warning("Auto-fill stopped early", { description: result.error });
       }
@@ -199,22 +227,38 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
     ["Email", info?.email ?? ""],
     ["Phone", info?.phone ?? ""],
     ["Location", info?.location ?? ""],
-    ...Object.entries(resume.data?.data.standard_answers ?? {}).map(([k, v]) => [humanize(k), v] as [string, string]),
+    ...Object.entries(resume.data?.data.standard_answers ?? {}).map(
+      ([k, v]) => [humanize(k), v] as [string, string],
+    ),
   ];
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
       <ol aria-label="Apply checklist">
         <Step
           index={1}
           done={Boolean(checklist.review)}
           onToggle={toggle("review")}
           title="Review the posting"
-          description={job.role_family ? <>Matched role family: <strong>{job.role_family}</strong></> : "No role family matched this title."}
+          description={
+            job.role_family ? (
+              <>
+                Matched role family: <strong>{job.role_family}</strong>
+              </>
+            ) : (
+              "No role family matched this title."
+            )
+          }
         >
           <div className="flex flex-wrap gap-2">
             {job.url && (
-              <a className={buttonVariants({ size: "sm" })} href={job.url} target="_blank" rel="noopener noreferrer" onClick={() => mark("review")}>
+              <a
+                className={buttonVariants({ size: "sm" })}
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => mark("review")}
+              >
                 <ExternalLink /> Open posting
               </a>
             )}
@@ -224,7 +268,9 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
               <p className="text-caption text-muted-foreground">Your skills this posting mentions</p>
               <div className="flex flex-wrap gap-1.5">
                 {job.matched_keywords.map((k) => (
-                  <Badge key={k} variant="success">{k}</Badge>
+                  <Badge key={k} variant="success">
+                    {k}
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -234,41 +280,88 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
               <p className="text-caption text-muted-foreground">Role keywords it does not mention</p>
               <div className="flex flex-wrap gap-1.5">
                 {job.missing_keywords.map((k) => (
-                  <Badge key={k} variant="outline">{k}</Badge>
+                  <Badge key={k} variant="outline">
+                    {k}
+                  </Badge>
                 ))}
               </div>
             </div>
           )}
         </Step>
 
-        <Step index={2} done={Boolean(checklist.cv)} onToggle={toggle("cv")} title="Your tailored CV"
-          description={cvDoc ? <>Created <RelativeTime value={cvDoc.created_at} />.</> : "No CV yet for this job."}>
+        <Step
+          index={2}
+          done={Boolean(checklist.cv)}
+          onToggle={toggle("cv")}
+          title="Your tailored CV"
+          description={
+            cvDoc ? (
+              <>
+                Created <RelativeTime value={cvDoc.created_at} />.
+              </>
+            ) : (
+              "No CV yet for this job."
+            )
+          }
+        >
           <div className="flex flex-wrap gap-2">
             {cvDoc ? (
               <>
                 <Button size="sm" variant="outline" onClick={() => setPreview(cvDoc)}>
                   <Eye /> Preview
                 </Button>
-                <a className={buttonVariants({ size: "sm", variant: "outline" })} href={`/api/documents/${cvDoc.id}/download`} onClick={() => mark("cv")}>
+                <a
+                  className={buttonVariants({ size: "sm", variant: "outline" })}
+                  href={`/api/documents/${cvDoc.id}/download`}
+                  onClick={() => mark("cv")}
+                >
                   <Download /> Download
                 </a>
               </>
             ) : null}
-            <Button size="sm" variant={cvDoc ? "ghost" : "default"} onClick={() => tailor.mutate()} loading={tailor.isPending}>
+            <Button
+              size="sm"
+              variant={cvDoc ? "ghost" : "default"}
+              onClick={() => tailor.mutate()}
+              loading={tailor.isPending}
+            >
               <RefreshCw /> {cvDoc ? "Regenerate" : "Generate CV"}
             </Button>
           </div>
           <CvEditor job={job} onDone={setJob} />
         </Step>
 
-        <Step index={3} done={Boolean(checklist.cover_letter)} onToggle={toggle("cover_letter")} title="Cover letter"
-          description="Built from the letter text for this role family, addressed to the company.">
+        <Step
+          index={3}
+          done={Boolean(checklist.cover_letter)}
+          onToggle={toggle("cover_letter")}
+          title="Cover letter"
+          description="Built from the letter text for this role family, addressed to the company."
+        >
           <div className="flex flex-wrap items-end gap-2">
-            <Field label="Company name on the letter" htmlFor="letter-company" className="w-64"
-              description={job.company.startsWith("Partner (") ? "The alert did not include it. Check the posting." : undefined}>
-              <Input id="letter-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name" />
+            <Field
+              label="Company name on the letter"
+              htmlFor="letter-company"
+              className="w-64"
+              description={
+                job.company.startsWith("Partner (")
+                  ? "The alert did not include it. Check the posting."
+                  : undefined
+              }
+            >
+              <Input
+                id="letter-company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Company name"
+              />
             </Field>
-            <Button size="sm" variant={letterDoc ? "ghost" : "default"} onClick={() => letter.mutate()} loading={letter.isPending}>
+            <Button
+              size="sm"
+              variant={letterDoc ? "ghost" : "default"}
+              onClick={() => letter.mutate()}
+              loading={letter.isPending}
+            >
               <RefreshCw /> {letterDoc ? "Regenerate" : "Generate cover letter"}
             </Button>
             {letterDoc && (
@@ -276,7 +369,11 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
                 <Button size="sm" variant="outline" onClick={() => setPreview(letterDoc)}>
                   <Eye /> Preview
                 </Button>
-                <a className={buttonVariants({ size: "sm", variant: "outline" })} href={`/api/documents/${letterDoc.id}/download`} onClick={() => mark("cover_letter")}>
+                <a
+                  className={buttonVariants({ size: "sm", variant: "outline" })}
+                  href={`/api/documents/${letterDoc.id}/download`}
+                  onClick={() => mark("cover_letter")}
+                >
                   <Download /> Download
                 </a>
               </>
@@ -284,23 +381,35 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
           </div>
         </Step>
 
-        <Step index={4} done={Boolean(checklist.answers)} onToggle={toggle("answers")} title="Copy-ready answers"
-          description="Edit these under Profile → Standard answers.">
-          <dl className="grid gap-2 sm:grid-cols-2">
+        <Step
+          index={4}
+          done={Boolean(checklist.answers)}
+          onToggle={toggle("answers")}
+          title="Copy-ready answers"
+          description="Edit these under Profile → Standard answers."
+        >
+          <ul className="grid gap-2 sm:grid-cols-2">
             {answers.map(([label, value]) => (
-              <div key={label} className="flex items-center gap-2 rounded-md border p-2">
+              <li key={label} className="flex items-center gap-2 rounded-md border p-2">
                 <div className="min-w-0 flex-1">
-                  <dt className="text-caption text-muted-foreground">{label}</dt>
-                  <dd className="truncate" title={value}>{value || <span className="text-muted-foreground">Not set</span>}</dd>
+                  <p className="text-caption text-muted-foreground">{label}</p>
+                  <p className="truncate" title={value}>
+                    {value || <span className="text-muted-foreground">Not set</span>}
+                  </p>
                 </div>
                 <CopyButton value={value} label={label} />
-              </div>
+              </li>
             ))}
-          </dl>
+          </ul>
         </Step>
 
-        <Step index={5} done={Boolean(checklist.apply)} onToggle={toggle("apply")} title="Apply"
-          description="You always review and press submit yourself.">
+        <Step
+          index={5}
+          done={Boolean(checklist.apply)}
+          onToggle={toggle("apply")}
+          title="Apply"
+          description="You always review and press submit yourself."
+        >
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -312,8 +421,13 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
                   title: "Open the posting with auto-fill?",
                   description: (
                     <>
-                      <p>A visible browser window opens, fills your name, email and phone, and attaches the tailored CV where it can.</p>
-                      <p className="mt-2 font-medium">Nothing is submitted. Check every field, submit it yourself, then close the window.</p>
+                      <p>
+                        A visible browser window opens, fills your name, email and phone, and attaches the
+                        tailored CV where it can.
+                      </p>
+                      <p className="mt-2 font-medium">
+                        Nothing is submitted. Check every field, submit it yourself, then close the window.
+                      </p>
                     </>
                   ),
                   confirmLabel: "Open browser",
@@ -326,7 +440,10 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
             <Button
               size="sm"
               onClick={() => {
-                patch.mutate({ application_status: "applied", apply_checklist: { ...checklist, apply: true } });
+                patch.mutate({
+                  application_status: "applied",
+                  apply_checklist: { ...checklist, apply: true },
+                });
                 toast.success("Marked as applied", { description: "Set a follow-up date below." });
               }}
               disabled={job.application_status !== "not_applied"}
@@ -349,15 +466,27 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
               <Select
                 id="app-status"
                 value={job.application_status}
-                onValueChange={(application_status) => patch.mutate({ application_status: application_status as JobDetail["application_status"] })}
+                onValueChange={(application_status) =>
+                  patch.mutate({ application_status: application_status as JobDetail["application_status"] })
+                }
                 options={APPLICATION_STATUS_OPTIONS}
               />
             </Field>
             <Field label="Applied on" htmlFor="applied-at">
-              <Input id="applied-at" type="date" value={job.applied_at?.slice(0, 10) ?? ""} onChange={(e) => patch.mutate({ applied_at: e.target.value })} />
+              <Input
+                id="applied-at"
+                type="date"
+                value={job.applied_at?.slice(0, 10) ?? ""}
+                onChange={(e) => patch.mutate({ applied_at: e.target.value })}
+              />
             </Field>
             <Field label="Follow up on" htmlFor="follow-up">
-              <Input id="follow-up" type="date" value={job.follow_up_at?.slice(0, 10) ?? ""} onChange={(e) => patch.mutate({ follow_up_at: e.target.value })} />
+              <Input
+                id="follow-up"
+                type="date"
+                value={job.follow_up_at?.slice(0, 10) ?? ""}
+                onChange={(e) => patch.mutate({ follow_up_at: e.target.value })}
+              />
             </Field>
           </div>
           <Field label="Notes" htmlFor="job-notes">

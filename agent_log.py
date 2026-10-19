@@ -41,7 +41,11 @@ def _emit(step, status, message="", data=None):
 
 def log(message="", level="info", data=None, **print_kwargs):
     """Print a console line and emit it as a log event for the current step."""
-    print(message, **print_kwargs)
+    try:
+        print(message, **print_kwargs)
+    except UnicodeEncodeError:
+        # A console that cannot show emoji (cp1252 redirect) must never stop the pipeline.
+        print(str(message).encode("ascii", "replace").decode("ascii"), **print_kwargs)
     _emit(_step.get(), "log", str(message).strip(), {"level": level, **(data or {})})
 
 

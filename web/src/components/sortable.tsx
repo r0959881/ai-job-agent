@@ -70,7 +70,12 @@ export function SortableList<T>({
   items: T[];
   getId: (item: T, index: number) => string;
   onMove: (from: number, to: number) => void;
-  renderItem: (item: T, index: number, handle: Omit<DragHandleProps, "label">, dragging: boolean) => React.ReactNode;
+  renderItem: (
+    item: T,
+    index: number,
+    handle: Omit<DragHandleProps, "label">,
+    dragging: boolean,
+  ) => React.ReactNode;
   className?: string;
 }) {
   const sensors = useSensors(

@@ -68,7 +68,7 @@ Return JSON: {{"experience": [{{"index": 0, "bullets": ["..."]}}],
         return draft, extras, {}, [f"“Enhance with AI” was skipped: {describe_error(exc)}. The plain import is shown."]
 
     draft, extras = copy.deepcopy(draft), copy.deepcopy(extras)
-    ai_fields = {}
+    ai_fields: dict[str, list[str]] = {}
     for entry in result.get("experience") or []:
         index = entry.get("index")
         if isinstance(index, int) and 0 <= index < len(draft["experience"]) and entry.get("bullets"):

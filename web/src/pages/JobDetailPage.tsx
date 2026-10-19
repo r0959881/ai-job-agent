@@ -1,5 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Calendar, Download, ExternalLink, Eye, FileText, MapPin, Trash2, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Download,
+  ExternalLink,
+  Eye,
+  FileText,
+  MapPin,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 import * as React from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -20,7 +30,10 @@ import { formatAbsolute, formatSalary } from "@/lib/utils";
 function HighlightedText({ text, words }: { text: string; words: string[] }) {
   const clean = text.replace(/<[^>]+>/g, " ").replace(/\s+\n/g, "\n");
   if (!words.length) return <>{clean}</>;
-  const pattern = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+  const pattern = new RegExp(
+    `(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+    "gi",
+  );
   return (
     <>
       {clean.split(pattern).map((part, index) =>
@@ -61,7 +74,10 @@ export default function JobDetailPage() {
   if (job.isError) {
     return (
       <>
-        <Link to="/jobs" className="mb-3 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground">
+        <Link
+          to="/jobs"
+          className="mb-3 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="size-4" /> All jobs
         </Link>
         <ErrorState title="This job could not be loaded" error={job.error} onRetry={() => job.refetch()} />
@@ -74,7 +90,10 @@ export default function JobDetailPage() {
 
   return (
     <>
-      <Link to="/jobs" className="mb-3 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground">
+      <Link
+        to="/jobs"
+        className="mb-3 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="size-4" /> All jobs
       </Link>
       <header className="mb-6 space-y-3">
@@ -107,15 +126,26 @@ export default function JobDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-body text-muted-foreground">
-          <span className="flex items-center gap-1.5"><MapPin className="size-4" /> {data.location || "Location unknown"}</span>
-          {salary && <span className="flex items-center gap-1.5 tabular"><Wallet className="size-4" /> {salary}</span>}
-          <span className="flex items-center gap-1.5"><Calendar className="size-4" /> Posted <RelativeTime value={posted} /></span>
+          <span className="flex items-center gap-1.5">
+            <MapPin className="size-4" /> {data.location || "Location unknown"}
+          </span>
+          {salary && (
+            <span className="flex items-center gap-1.5 tabular">
+              <Wallet className="size-4" /> {salary}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <Calendar className="size-4" /> Posted <RelativeTime value={posted} />
+          </span>
           <SourceBadge source={data.source} />
           <ApplicationStatusBadge status={data.application_status} />
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={(value) => setParams(value === "apply" ? {} : { tab: value }, { replace: true })}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setParams(value === "apply" ? {} : { tab: value }, { replace: true })}
+      >
         <TabsList>
           <TabsTrigger value="apply">Apply</TabsTrigger>
           <TabsTrigger value="description">Description</TabsTrigger>
@@ -132,21 +162,37 @@ export default function JobDetailPage() {
                 <HighlightedText text={data.description} words={data.matched_keywords} />
               </div>
             ) : (
-              <EmptyState title="No description stored" description="Open the posting to read the full text." />
+              <EmptyState
+                title="No description stored"
+                description="Open the posting to read the full text."
+              />
             )}
           </Card>
         </TabsContent>
         <TabsContent value="documents">
           {data.documents.length === 0 ? (
-            <EmptyState icon={FileText} title="No documents for this job yet" description="Generate a CV or cover letter on the Apply tab." />
+            <EmptyState
+              icon={FileText}
+              title="No documents for this job yet"
+              description="Generate a CV or cover letter on the Apply tab."
+            />
           ) : (
             <Card className="divide-y">
               {data.documents.map((doc) => (
                 <div key={doc.id} className="flex items-center gap-3 p-3">
                   <FileText className="size-4 text-info" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{doc.kind === "cv" ? "Tailored CV" : doc.kind === "cover_letter" ? "Cover letter" : doc.name}</p>
-                    <p className="truncate text-caption text-muted-foreground" title={formatAbsolute(doc.created_at)}>
+                    <p className="font-medium">
+                      {doc.kind === "cv"
+                        ? "Tailored CV"
+                        : doc.kind === "cover_letter"
+                          ? "Cover letter"
+                          : doc.name}
+                    </p>
+                    <p
+                      className="truncate text-caption text-muted-foreground"
+                      title={formatAbsolute(doc.created_at)}
+                    >
                       {doc.name} · <RelativeTime value={doc.created_at} />
                     </p>
                   </div>
@@ -155,7 +201,10 @@ export default function JobDetailPage() {
                       <Button size="sm" variant="ghost" onClick={() => setPreview(doc)}>
                         <Eye /> Preview
                       </Button>
-                      <a className={buttonVariants({ size: "sm", variant: "outline" })} href={`/api/documents/${doc.id}/download`}>
+                      <a
+                        className={buttonVariants({ size: "sm", variant: "outline" })}
+                        href={`/api/documents/${doc.id}/download`}
+                      >
                         <Download /> Download
                       </a>
                     </>
@@ -168,10 +217,16 @@ export default function JobDetailPage() {
           )}
         </TabsContent>
         <TabsContent value="notes">
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2">
             <Card className="p-4">
               <h2 className="mb-2 text-section">Notes</h2>
-              <p className="whitespace-pre-line text-body">{data.notes || <span className="text-muted-foreground">No notes yet. Add them in step 6 on the Apply tab.</span>}</p>
+              <p className="whitespace-pre-line text-body">
+                {data.notes || (
+                  <span className="text-muted-foreground">
+                    No notes yet. Add them in step 6 on the Apply tab.
+                  </span>
+                )}
+              </p>
             </Card>
             <Card className="p-4">
               <h2 className="mb-2 text-section">History</h2>

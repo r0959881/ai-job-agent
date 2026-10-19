@@ -102,7 +102,11 @@ export default function OnboardingPage() {
           <>
             <div className="mb-6 max-w-prose space-y-1">
               <h1 className="text-title">
-                {importOnly ? (only === "linkedin" ? "Import from LinkedIn" : "Import a resume file") : "Set up your profile"}
+                {importOnly
+                  ? only === "linkedin"
+                    ? "Import from LinkedIn"
+                    : "Import a resume file"
+                  : "Set up your profile"}
               </h1>
               <p className="text-body text-muted-foreground">
                 {stage === "merge"
@@ -116,17 +120,29 @@ export default function OnboardingPage() {
               <Card className="max-w-2xl space-y-4 p-6">
                 <h2 className="text-section">Your profile was updated</h2>
                 <p className="text-body text-muted-foreground">
-                  {resume.data ? `It now has ${resume.data.data.experience.length} experience entries and ${resume.data.data.projects.length} projects.` : ""}{" "}
+                  {resume.data
+                    ? `It now has ${resume.data.data.experience.length} experience entries and ${resume.data.data.projects.length} projects.`
+                    : ""}{" "}
                   Import another source to fill gaps, or continue.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={() => { setApplied(false); setFlowKey((k) => k + 1); }}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setApplied(false);
+                      setFlowKey((k) => k + 1);
+                    }}
+                  >
                     Import another source
                   </Button>
                   {importOnly ? (
-                    <Button onClick={() => navigate(returnTo!)}>Back to {returnTo === "/profile" ? "profile" : "settings"} <ArrowRight /></Button>
+                    <Button onClick={() => navigate(returnTo!)}>
+                      Back to {returnTo === "/profile" ? "profile" : "settings"} <ArrowRight />
+                    </Button>
                   ) : (
-                    <Button onClick={() => setStep(2)}>Continue <ArrowRight /></Button>
+                    <Button onClick={() => setStep(2)}>
+                      Continue <ArrowRight />
+                    </Button>
                   )}
                 </div>
               </Card>
@@ -140,7 +156,9 @@ export default function OnboardingPage() {
                     ? undefined
                     : () => {
                         if (resume.data?.empty) {
-                          toast.error("resume_data.yaml is empty", { description: "Upload a resume or a LinkedIn export instead." });
+                          toast.error("resume_data.yaml is empty", {
+                            description: "Upload a resume or a LinkedIn export instead.",
+                          });
                           return;
                         }
                         setStep(2);
@@ -158,8 +176,8 @@ export default function OnboardingPage() {
             <div className="space-y-1">
               <h1 className="text-title">Connect & configure</h1>
               <p className="max-w-prose text-body text-muted-foreground">
-                Add your API keys and test them, connect Gmail for job-alert emails, and pick the roles to search for.
-                Everything here can be skipped and changed later in Settings.
+                Add your API keys and test them, connect Gmail for job-alert emails, and pick the roles to
+                search for. Everything here can be skipped and changed later in Settings.
               </p>
             </div>
             <SecretsPanel groups={["groq", "adzuna"]} />

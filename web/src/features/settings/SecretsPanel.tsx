@@ -27,7 +27,8 @@ const GROUPS: { id: string; title: string; description: string; help?: { href: s
   {
     id: "smtp",
     title: "Email alerts (Gmail SMTP)",
-    description: "Optional: emails you when a run tailors a CV. Needs a Gmail app password, not your normal password.",
+    description:
+      "Optional: emails you when a run tailors a CV. Needs a Gmail app password, not your normal password.",
     help: { href: "https://myaccount.google.com/apppasswords", label: "Create an app password" },
   },
 ];
@@ -39,12 +40,15 @@ function SecretRow({ field }: { field: SecretField }) {
   const [value, setValue] = React.useState("");
   const [visible, setVisible] = React.useState(false);
   const save = useMutation({
-    mutationFn: (next: string) => api.put<SecretField[]>("/api/settings/secrets", { values: { [field.key]: next } }),
+    mutationFn: (next: string) =>
+      api.put<SecretField[]>("/api/settings/secrets", { values: { [field.key]: next } }),
     onSuccess: (fields, next) => {
       queryClient.setQueryData(keys.secrets, fields);
       queryClient.invalidateQueries({ queryKey: keys.integrations });
       queryClient.invalidateQueries({ queryKey: keys.stats });
-      toast.success(next ? `${field.label} saved` : `${field.label} removed`, { description: "Stored in .env on this computer." });
+      toast.success(next ? `${field.label} saved` : `${field.label} removed`, {
+        description: "Stored in .env on this computer.",
+      });
       setEditing(false);
       setValue("");
     },
@@ -58,7 +62,11 @@ function SecretRow({ field }: { field: SecretField }) {
           {field.label}
         </label>
         <span className="font-mono text-caption text-muted-foreground">{field.key}</span>
-        {field.set ? <Badge variant="success">Set · {field.masked}</Badge> : <Badge variant="outline">Not set</Badge>}
+        {field.set ? (
+          <Badge variant="success">Set · {field.masked}</Badge>
+        ) : (
+          <Badge variant="outline">Not set</Badge>
+        )}
       </div>
       {editing ? (
         <form
@@ -106,7 +114,14 @@ function SecretRow({ field }: { field: SecretField }) {
               size="sm"
               variant="ghost"
               onClick={async () => {
-                if (await confirm({ title: `Remove ${field.label}?`, description: "It is deleted from .env.", confirmLabel: "Remove", destructive: true }))
+                if (
+                  await confirm({
+                    title: `Remove ${field.label}?`,
+                    description: "It is deleted from .env.",
+                    confirmLabel: "Remove",
+                    destructive: true,
+                  })
+                )
                   save.mutate("");
               }}
             >
@@ -141,7 +156,10 @@ function TestButton({ name }: { name: string }) {
 
 function SmtpToggle() {
   const queryClient = useQueryClient();
-  const settings = useQuery({ queryKey: keys.settings, queryFn: () => api.get<SettingsResponse>("/api/settings/search") });
+  const settings = useQuery({
+    queryKey: keys.settings,
+    queryFn: () => api.get<SettingsResponse>("/api/settings/search"),
+  });
   const save = useMutation({
     mutationFn: (enabled: boolean) =>
       api.put<SettingsResponse>("/api/settings/search", {
@@ -167,7 +185,10 @@ function SmtpToggle() {
 }
 
 export function SecretsPanel({ groups = ["groq", "adzuna", "smtp"] }: { groups?: string[] }) {
-  const secrets = useQuery({ queryKey: keys.secrets, queryFn: () => api.get<SecretField[]>("/api/settings/secrets") });
+  const secrets = useQuery({
+    queryKey: keys.secrets,
+    queryFn: () => api.get<SecretField[]>("/api/settings/secrets"),
+  });
   if (secrets.isPending) return <SkeletonForm fields={4} />;
   if (secrets.isError) return <ErrorState error={secrets.error} onRetry={() => secrets.refetch()} />;
   return (
@@ -179,7 +200,12 @@ export function SecretsPanel({ groups = ["groq", "adzuna", "smtp"] }: { groups?:
             <p className="max-w-prose text-body text-muted-foreground">
               {group.description}{" "}
               {group.help && (
-                <a className="text-primary underline-offset-4 hover:underline" href={group.help.href} target="_blank" rel="noopener noreferrer">
+                <a
+                  className="text-primary underline underline-offset-4 hover:decoration-2"
+                  href={group.help.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {group.help.label}
                 </a>
               )}
@@ -195,7 +221,8 @@ export function SecretsPanel({ groups = ["groq", "adzuna", "smtp"] }: { groups?:
         </Card>
       ))}
       <p className="text-caption text-muted-foreground">
-        Keys are saved in <span className="font-mono">.env</span> next to the app and never shown in full again.
+        Keys are saved in <span className="font-mono">.env</span> next to the app and never shown in full
+        again.
       </p>
     </div>
   );

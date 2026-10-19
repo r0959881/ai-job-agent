@@ -74,6 +74,10 @@ def pick_port(preferred):
 
 
 def main(argv=None):
+    # Emoji in log lines must not crash when output is redirected to a cp1252 file on Windows.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="AI Job Agent web UI")
     parser.add_argument("--port", type=int, default=int(os.environ.get("AI_JOB_AGENT_PORT", DEFAULT_PORT)))
     parser.add_argument("--dev", action="store_true", help="API only; use with `npm run dev` in web/")

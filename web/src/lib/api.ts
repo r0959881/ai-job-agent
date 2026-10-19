@@ -44,7 +44,8 @@ export function messageFromDetail(detail: unknown, fallback: string): string {
       .slice(0, 3);
     return parts.join("; ") || fallback;
   }
-  if (detail && typeof detail === "object" && "message" in detail) return String((detail as { message: string }).message);
+  if (detail && typeof detail === "object" && "message" in detail)
+    return String((detail as { message: string }).message);
   return fallback;
 }
 
@@ -74,8 +75,13 @@ export async function request<T>(method: string, url: string, body?: unknown, re
   const text = await response.text();
   const data = text ? safeJson(text) : null;
   if (!response.ok) {
-    const detail = data && typeof data === "object" && "detail" in data ? (data as { detail: unknown }).detail : data;
-    throw new ApiError(response.status, messageFromDetail(detail, `Request failed (${response.status}).`), detail);
+    const detail =
+      data && typeof data === "object" && "detail" in data ? (data as { detail: unknown }).detail : data;
+    throw new ApiError(
+      response.status,
+      messageFromDetail(detail, `Request failed (${response.status}).`),
+      detail,
+    );
   }
   return data as T;
 }

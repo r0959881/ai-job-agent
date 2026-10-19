@@ -26,7 +26,9 @@ export function MultiSelect({
 }) {
   const [filter, setFilter] = React.useState("");
   const known = new Set(options);
-  const visible = options.filter((option) => formatOption(option).toLowerCase().includes(filter.toLowerCase()));
+  const visible = options.filter((option) =>
+    formatOption(option).toLowerCase().includes(filter.toLowerCase()),
+  );
   const toggle = (option: string) =>
     onChange(value.includes(option) ? value.filter((v) => v !== option) : [...value, option]);
 
@@ -46,7 +48,7 @@ export function MultiSelect({
                 {formatOption(item)}
                 <button
                   type="button"
-                  className="rounded-full p-0.5 hover:bg-foreground/10"
+                  className="-my-1 rounded-full p-1.5 hover:bg-foreground/10"
                   onClick={() => toggle(item)}
                   aria-label={`Remove ${formatOption(item)}`}
                 >
@@ -81,7 +83,9 @@ export function MultiSelect({
             />
           )}
           <ul role="listbox" aria-multiselectable className="max-h-64 overflow-y-auto p-1">
-            {visible.length === 0 && <li className="px-2 py-2 text-body text-muted-foreground">Nothing to choose yet.</li>}
+            {visible.length === 0 && (
+              <li className="px-2 py-2 text-body text-muted-foreground">Nothing to choose yet.</li>
+            )}
             {visible.map((option) => {
               const selected = value.includes(option);
               return (

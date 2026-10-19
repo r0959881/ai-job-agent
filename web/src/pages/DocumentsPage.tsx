@@ -1,5 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, FileSpreadsheet, FileText, FolderSearch, LayoutGrid, List, Mail, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  FolderSearch,
+  LayoutGrid,
+  List,
+  Mail,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -21,7 +33,12 @@ const KINDS = [
   { value: "report", label: "Excel reports" },
   { value: "other", label: "Other files" },
 ];
-const KIND_LABEL: Record<string, string> = { cv: "CV", cover_letter: "Cover letter", report: "Report", other: "File" };
+const KIND_LABEL: Record<string, string> = {
+  cv: "CV",
+  cover_letter: "Cover letter",
+  report: "Report",
+  other: "File",
+};
 const SINCE = [
   { value: "all", label: "Any date" },
   { value: "1", label: "Last 24 hours" },
@@ -59,12 +76,15 @@ export default function DocumentsPage() {
   const [selected, setSelected] = React.useState<Set<number>>(new Set());
 
   const setParam = (key: string, value: string, fallback: string) =>
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      if (value === fallback) next.delete(key);
-      else next.set(key, value);
-      return next;
-    }, { replace: true });
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (value === fallback) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true },
+    );
 
   const docs = useQuery({
     queryKey: ["documents", "all"],
@@ -81,10 +101,16 @@ export default function DocumentsPage() {
     onError: (error: Error) => toast.error("Rescan failed", { description: error.message }),
   });
   const bulkDelete = useMutation({
-    mutationFn: (ids: number[]) => api.post<{ deleted: number[]; failed: { id: number; reason: string }[] }>("/api/documents/bulk-delete", { ids }),
+    mutationFn: (ids: number[]) =>
+      api.post<{ deleted: number[]; failed: { id: number; reason: string }[] }>(
+        "/api/documents/bulk-delete",
+        { ids },
+      ),
     onSuccess: (result) => {
       (result.failed.length ? toast.warning : toast.success)(`Deleted ${result.deleted.length} file(s)`, {
-        description: result.failed.length ? `${result.failed.length} could not be deleted: ${result.failed[0].reason}` : undefined,
+        description: result.failed.length
+          ? `${result.failed.length} could not be deleted: ${result.failed[0].reason}`
+          : undefined,
       });
       setSelected(new Set());
       queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -103,7 +129,8 @@ export default function DocumentsPage() {
       (!orphans || isOrphan(doc)) &&
       (roleFamily === "all" || doc.role_family === roleFamily) &&
       (!cutoff || new Date(doc.created_at).getTime() >= cutoff) &&
-      (!needle || `${doc.name} ${doc.job_title ?? ""} ${doc.job_company ?? ""}`.toLowerCase().includes(needle)),
+      (!needle ||
+        `${doc.name} ${doc.job_title ?? ""} ${doc.job_company ?? ""}`.toLowerCase().includes(needle)),
   );
   const orphanCount = all.filter(isOrphan).length;
 
@@ -116,7 +143,7 @@ export default function DocumentsPage() {
           : doc.kind === "report"
             ? "Excel reports"
             : "Not linked to a job"
-        : KINDS.find((k) => k.value === doc.kind)?.label ?? "Other files";
+        : (KINDS.find((k) => k.value === doc.kind)?.label ?? "Other files");
     groups.set(key, [...(groups.get(key) ?? []), doc]);
   }
 
@@ -143,11 +170,20 @@ export default function DocumentsPage() {
     doc.exists ? (
       <div className="flex shrink-0 gap-1">
         {doc.kind !== "report" && (
-          <Button size="icon-sm" variant="ghost" aria-label={`Preview ${doc.name}`} onClick={() => setPreview(doc)}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Preview ${doc.name}`}
+            onClick={() => setPreview(doc)}
+          >
             <Eye />
           </Button>
         )}
-        <a className={buttonVariants({ size: "icon-sm", variant: "ghost" })} href={`/api/documents/${doc.id}/download`} aria-label={`Download ${doc.name}`}>
+        <a
+          className={buttonVariants({ size: "icon-sm", variant: "ghost" })}
+          href={`/api/documents/${doc.id}/download`}
+          aria-label={`Download ${doc.name}`}
+        >
           <Download />
         </a>
       </div>
@@ -168,33 +204,86 @@ export default function DocumentsPage() {
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden />
-          <Input type="search" aria-label="Search documents" placeholder="Search file, job or company…" className="pl-8" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Search
+            className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            aria-label="Search documents"
+            placeholder="Search file, job or company…"
+            className="pl-8"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
         </div>
-        <div className="w-40"><Select aria-label="Type" value={kind} onValueChange={(v) => setParam("kind", v, "all")} options={KINDS} /></div>
+        <div className="w-40">
+          <Select
+            aria-label="Type"
+            value={kind}
+            onValueChange={(v) => setParam("kind", v, "all")}
+            options={KINDS}
+          />
+        </div>
         <div className="w-48">
-          <Select aria-label="Role family" value={roleFamily} onValueChange={(v) => setParam("role", v, "all")}
-            options={[{ value: "all", label: "All role families" }, ...roleFamilies.map((r) => ({ value: r, label: r }))]} />
+          <Select
+            aria-label="Role family"
+            value={roleFamily}
+            onValueChange={(v) => setParam("role", v, "all")}
+            options={[
+              { value: "all", label: "All role families" },
+              ...roleFamilies.map((r) => ({ value: r, label: r })),
+            ]}
+          />
         </div>
-        <div className="w-40"><Select aria-label="Created" value={since} onValueChange={(v) => setParam("since", v, "all")} options={SINCE} /></div>
+        <div className="w-40">
+          <Select
+            aria-label="Created"
+            value={since}
+            onValueChange={(v) => setParam("since", v, "all")}
+            options={SINCE}
+          />
+        </div>
         <button
           type="button"
           aria-pressed={orphans}
           onClick={() => setParam("orphans", orphans ? "0" : "1", "0")}
-          className={cn("h-9 rounded-full border px-3 text-caption font-medium hover:bg-muted", orphans && "border-primary bg-primary text-primary-foreground hover:bg-primary/90")}
+          className={cn(
+            "h-9 rounded-full border px-3 text-caption font-medium hover:bg-muted",
+            orphans && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+          )}
         >
           Orphans ({orphanCount})
         </button>
         <div className="ml-auto flex items-center gap-2">
           <div className="w-40">
-            <Select aria-label="Group by" value={group} onValueChange={(v) => setParam("group", v, "type")}
-              options={[{ value: "type", label: "Group by type" }, { value: "job", label: "Group by job" }]} />
+            <Select
+              aria-label="Group by"
+              value={group}
+              onValueChange={(v) => setParam("group", v, "type")}
+              options={[
+                { value: "type", label: "Group by type" },
+                { value: "job", label: "Group by job" },
+              ]}
+            />
           </div>
           <div className="flex rounded-md border p-0.5" role="group" aria-label="View">
-            <Button size="icon-sm" variant={view === "list" ? "secondary" : "ghost"} aria-pressed={view === "list"} aria-label="List view" onClick={() => setParam("view", "list", "list")}>
+            <Button
+              size="icon-sm"
+              variant={view === "list" ? "secondary" : "ghost"}
+              aria-pressed={view === "list"}
+              aria-label="List view"
+              onClick={() => setParam("view", "list", "list")}
+            >
               <List />
             </Button>
-            <Button size="icon-sm" variant={view === "grid" ? "secondary" : "ghost"} aria-pressed={view === "grid"} aria-label="Grid view" onClick={() => setParam("view", "grid", "list")}>
+            <Button
+              size="icon-sm"
+              variant={view === "grid" ? "secondary" : "ghost"}
+              aria-pressed={view === "grid"}
+              aria-label="Grid view"
+              onClick={() => setParam("view", "grid", "list")}
+            >
               <LayoutGrid />
             </Button>
           </div>
@@ -202,12 +291,32 @@ export default function DocumentsPage() {
       </div>
 
       {(orphans || selected.size > 0) && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-accent px-3 py-2" role="region" aria-label="Bulk actions">
-          {orphans && <p className="text-body">Orphans are files in output/ that no job points to, such as samples and old test CVs.</p>}
-          <Button size="sm" variant="outline" className="ml-auto" onClick={() => setSelected(new Set(filtered.map((d) => d.id)))} disabled={!filtered.length}>
+        <div
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-accent px-3 py-2"
+          role="region"
+          aria-label="Bulk actions"
+        >
+          {orphans && (
+            <p className="text-body">
+              Orphans are files in output/ that no job points to, such as samples and old test CVs.
+            </p>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto"
+            onClick={() => setSelected(new Set(filtered.map((d) => d.id)))}
+            disabled={!filtered.length}
+          >
             Select all {filtered.length}
           </Button>
-          <Button size="sm" variant="danger" disabled={!selected.size} loading={bulkDelete.isPending} onClick={deleteSelected}>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={!selected.size}
+            loading={bulkDelete.isPending}
+            onClick={deleteSelected}
+          >
             <Trash2 /> Delete {selected.size || ""} selected
           </Button>
         </div>
@@ -219,26 +328,59 @@ export default function DocumentsPage() {
         <EmptyState
           icon={FolderSearch}
           title={all.length ? "No documents match" : "No documents yet"}
-          description={all.length ? "Change the filters or search." : "Tailored CVs appear here after a run, or generate one from a job's Apply tab."}
-          action={all.length ? undefined : <Link to="/jobs" className={buttonVariants()}>Go to jobs</Link>}
+          description={
+            all.length
+              ? "Change the filters or search."
+              : "Tailored CVs appear here after a run, or generate one from a job's Apply tab."
+          }
+          action={
+            all.length ? undefined : (
+              <Link to="/jobs" className={buttonVariants()}>
+                Go to jobs
+              </Link>
+            )
+          }
         />
       )}
       <div className="space-y-6">
         {[...groups.entries()].map(([title, items]) => (
           <section key={title} aria-label={title}>
             <h2 className="mb-2 text-section">
-              {title} <span className="text-body font-normal text-muted-foreground tabular">({items.length})</span>
+              {title}{" "}
+              <span className="text-body font-normal text-muted-foreground tabular">({items.length})</span>
             </h2>
-            <div className={view === "grid" ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "divide-y rounded-lg border"}>
+            <div
+              className={
+                view === "grid"
+                  ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  : "divide-y rounded-lg border"
+              }
+            >
               {items.map((doc) =>
                 view === "grid" ? (
-                  <Card key={doc.id} className={cn("flex flex-col gap-3 p-3", selected.has(doc.id) && "ring-2 ring-primary")}>
+                  <Card
+                    key={doc.id}
+                    className={cn("flex flex-col gap-3 p-3", selected.has(doc.id) && "ring-2 ring-primary")}
+                  >
                     <div className="flex items-start gap-2">
-                      <Checkbox aria-label={`Select ${doc.name}`} checked={selected.has(doc.id)} onCheckedChange={(on) => toggle(doc.id, on === true)} className="mt-1" />
+                      <Checkbox
+                        aria-label={`Select ${doc.name}`}
+                        checked={selected.has(doc.id)}
+                        onCheckedChange={(on) => toggle(doc.id, on === true)}
+                        className="mt-1"
+                      />
                       <KindIcon kind={doc.kind} />
-                      <button type="button" className="min-w-0 flex-1 text-left" onClick={() => doc.kind !== "report" && doc.exists && setPreview(doc)}>
-                        <p className="line-clamp-2 break-words font-medium" title={doc.name}>{doc.job_title ?? prettyName(doc.name)}</p>
-                        <p className="truncate text-caption text-muted-foreground">{doc.job_company ?? doc.role_family ?? ""}</p>
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => doc.kind !== "report" && doc.exists && setPreview(doc)}
+                      >
+                        <p className="line-clamp-2 break-words font-medium" title={doc.name}>
+                          {doc.job_title ?? prettyName(doc.name)}
+                        </p>
+                        <p className="truncate text-caption text-muted-foreground">
+                          {doc.job_company ?? doc.role_family ?? ""}
+                        </p>
                       </button>
                     </div>
                     <div className="mt-auto flex items-center justify-between gap-2">
@@ -250,19 +392,43 @@ export default function DocumentsPage() {
                     </div>
                   </Card>
                 ) : (
-                  <div key={doc.id} className={cn("flex items-center gap-3 px-3 py-2", selected.has(doc.id) && "bg-accent/60")}>
-                    <Checkbox aria-label={`Select ${doc.name}`} checked={selected.has(doc.id)} onCheckedChange={(on) => toggle(doc.id, on === true)} />
+                  <div
+                    key={doc.id}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2",
+                      selected.has(doc.id) && "bg-accent/60",
+                    )}
+                  >
+                    <Checkbox
+                      aria-label={`Select ${doc.name}`}
+                      checked={selected.has(doc.id)}
+                      onCheckedChange={(on) => toggle(doc.id, on === true)}
+                    />
                     <KindIcon kind={doc.kind} />
                     <div className="min-w-0 flex-1">
                       {doc.job_id && doc.job_title ? (
-                        <Link to={`/jobs/${doc.job_id}`} className="block truncate font-medium hover:underline">{doc.job_title} · {doc.job_company}</Link>
+                        <Link
+                          to={`/jobs/${doc.job_id}`}
+                          className="block truncate font-medium hover:underline"
+                        >
+                          {doc.job_title} · {doc.job_company}
+                        </Link>
                       ) : (
                         <p className="truncate font-medium">{prettyName(doc.name)}</p>
                       )}
-                      <p className="truncate text-caption text-muted-foreground" title={doc.path}>{doc.name}</p>
+                      <p className="truncate text-caption text-muted-foreground" title={doc.path}>
+                        {doc.name}
+                      </p>
                     </div>
-                    {doc.role_family && <Badge variant="secondary" className="hidden md:inline-flex">{doc.role_family}</Badge>}
-                    <RelativeTime value={doc.created_at} className="hidden shrink-0 text-caption text-muted-foreground sm:inline" />
+                    {doc.role_family && (
+                      <Badge variant="secondary" className="hidden md:inline-flex">
+                        {doc.role_family}
+                      </Badge>
+                    )}
+                    <RelativeTime
+                      value={doc.created_at}
+                      className="hidden shrink-0 text-caption text-muted-foreground sm:inline"
+                    />
                     <DocActions doc={doc} />
                   </div>
                 ),

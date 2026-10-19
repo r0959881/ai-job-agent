@@ -14,7 +14,10 @@ import type { YamlError } from "@/lib/types";
 
 const editorTheme = EditorView.theme({
   "&": { backgroundColor: "hsl(var(--background))", color: "hsl(var(--foreground))", height: "100%" },
-  ".cm-content": { caretColor: "hsl(var(--foreground))", fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace" },
+  ".cm-content": {
+    caretColor: "hsl(var(--foreground))",
+    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+  },
   ".cm-gutters": {
     backgroundColor: "hsl(var(--muted))",
     color: "hsl(var(--muted-foreground))",
@@ -23,7 +26,9 @@ const editorTheme = EditorView.theme({
   ".cm-activeLine": { backgroundColor: "hsl(var(--accent) / 0.5)" },
   ".cm-activeLineGutter": { backgroundColor: "hsl(var(--accent))" },
   "&.cm-focused .cm-cursor": { borderLeftColor: "hsl(var(--foreground))" },
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "hsl(var(--primary) / 0.25)" },
+  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+    backgroundColor: "hsl(var(--primary) / 0.25)",
+  },
   ".cm-tooltip": { backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" },
 });
 
@@ -44,7 +49,10 @@ export function YamlEditor({ onClose }: { onClose: () => void }) {
     const yamlLinter = linter(
       async (editor) => {
         const result = await api
-          .post<{ valid: boolean; errors: YamlError[] }>("/api/resume/raw/validate", { text: editor.state.doc.toString() })
+          .post<{
+            valid: boolean;
+            errors: YamlError[];
+          }>("/api/resume/raw/validate", { text: editor.state.doc.toString() })
           .catch(() => ({ valid: true, errors: [] as YamlError[] }));
         setErrors(result.errors);
         return result.errors.map((error): Diagnostic => {
@@ -102,7 +110,8 @@ export function YamlEditor({ onClose }: { onClose: () => void }) {
     <Card className="flex h-[calc(100vh-12rem)] min-h-[420px] flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 border-b p-3">
         <p className="flex-1 text-body text-muted-foreground">
-          Editing <span className="font-mono">resume_data.yaml</span> directly. Comments and formatting are kept.
+          Editing <span className="font-mono">resume_data.yaml</span> directly. Comments and formatting are
+          kept.
         </p>
         {errors.length ? (
           <span className="flex items-center gap-1 text-body text-danger" role="status">
@@ -116,7 +125,12 @@ export function YamlEditor({ onClose }: { onClose: () => void }) {
         <Button variant="outline" size="sm" onClick={onClose}>
           <X /> Back to the form
         </Button>
-        <Button size="sm" onClick={() => save.mutate()} loading={save.isPending} disabled={!dirty || errors.length > 0}>
+        <Button
+          size="sm"
+          onClick={() => save.mutate()}
+          loading={save.isPending}
+          disabled={!dirty || errors.length > 0}
+        >
           <Save /> Save YAML
         </Button>
       </div>

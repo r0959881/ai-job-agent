@@ -108,7 +108,7 @@ export function TagInput({
           {tag}
           <button
             type="button"
-            className="rounded-full p-0.5 hover:bg-primary/15"
+            className="-my-1 rounded-full p-1.5 hover:bg-primary/15"
             aria-label={`Remove ${tag}`}
             onClick={() => onChange(value.filter((_, i) => i !== index))}
           >
@@ -120,7 +120,7 @@ export function TagInput({
         id={id}
         aria-label={ariaLabel}
         list={suggestions?.length ? listId : undefined}
-        className="min-w-[8rem] flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
+        className="h-6 min-w-[8rem] flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
         placeholder={value.length ? "" : placeholder}
         value={draft}
         onChange={(event) => {
@@ -188,7 +188,8 @@ export function RunStatusBadge({ status }: { status: string }) {
 }
 
 export function JobStatusBadge({ status }: { status: string }) {
-  const variant: BadgeVariant = status === "processed" ? "success" : status === "rejected" ? "outline" : "secondary";
+  const variant: BadgeVariant =
+    status === "processed" ? "success" : status === "rejected" ? "outline" : "secondary";
   const label = status === "processed" ? "CV ready" : status === "rejected" ? "Filtered out" : "New";
   return <Badge variant={variant}>{label}</Badge>;
 }

@@ -27,13 +27,17 @@ export function FilterMenu({
           )}
         >
           {label}
-          {active && <span className="rounded bg-primary px-1 tabular text-primary-foreground">{value.length}</span>}
+          {active && (
+            <span className="rounded bg-primary px-1 tabular text-primary-foreground">{value.length}</span>
+          )}
           <ChevronDown className="size-3.5 opacity-60" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-60 p-1">
         <ul className="max-h-72 overflow-y-auto" aria-label={label}>
-          {options.length === 0 && <li className="px-2 py-2 text-body text-muted-foreground">No values yet.</li>}
+          {options.length === 0 && (
+            <li className="px-2 py-2 text-body text-muted-foreground">No values yet.</li>
+          )}
           {options.map((option) => {
             const checked = value.includes(option.value);
             return (

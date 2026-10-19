@@ -14,7 +14,13 @@ const itemClass =
 const groupClass =
   "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:text-muted-foreground";
 
-export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const navigate = useNavigate();
   const startRun = useStartRun();
   const [search, setSearch] = React.useState("");
@@ -59,7 +65,10 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                 </Command.Item>
               )}
               {matches(search, "Add experience profile") && (
-                <Command.Item className={itemClass} onSelect={() => go(() => navigate("/profile?add=experience#experience"))}>
+                <Command.Item
+                  className={itemClass}
+                  onSelect={() => go(() => navigate("/profile?add=experience#experience"))}
+                >
                   <Plus /> Add experience
                 </Command.Item>
               )}
@@ -74,10 +83,16 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             {jobs.data?.items.length ? (
               <Command.Group heading="Jobs" className={groupClass}>
                 {jobs.data.items.map((job) => (
-                  <Command.Item key={job.id} className={itemClass} onSelect={() => go(() => navigate(`/jobs/${job.id}`))}>
+                  <Command.Item
+                    key={job.id}
+                    className={itemClass}
+                    onSelect={() => go(() => navigate(`/jobs/${job.id}`))}
+                  >
                     <Briefcase />
                     <span className="truncate">{job.title}</span>
-                    <span className="ml-auto shrink-0 truncate text-caption text-muted-foreground">{job.company}</span>
+                    <span className="ml-auto shrink-0 truncate text-caption text-muted-foreground">
+                      {job.company}
+                    </span>
                   </Command.Item>
                 ))}
               </Command.Group>

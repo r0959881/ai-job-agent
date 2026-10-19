@@ -17,7 +17,10 @@ export const personalInfoSchema = z
     email: z
       .string()
       .trim()
-      .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email address, like name@example.com"),
+      .refine(
+        (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+        "Enter a valid email address, like name@example.com",
+      ),
     phone: z.string(),
     location: z.string(),
   })
@@ -62,13 +65,23 @@ export const educationSchema = z
   })
   .passthrough();
 
-function uniqueNames<T>(items: T[], pick: (item: T) => string, ctx: z.RefinementCtx, path: string, field: string) {
+function uniqueNames<T>(
+  items: T[],
+  pick: (item: T) => string,
+  ctx: z.RefinementCtx,
+  path: string,
+  field: string,
+) {
   const seen = new Map<string, number>();
   items.forEach((item, index) => {
     const key = pick(item).trim().toLowerCase();
     if (!key) return;
     if (seen.has(key)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "This name is used twice", path: [path, index, field] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "This name is used twice",
+        path: [path, index, field],
+      });
     } else seen.set(key, index);
   });
 }
@@ -147,7 +160,10 @@ export function fromForm(form: ProfileForm): Resume {
   return {
     personal_info: form.personal_info as Resume["personal_info"],
     role_profiles: Object.fromEntries(
-      form.role_profiles.map(({ name, ...profile }) => [name.trim(), profile as Resume["role_profiles"][string]]),
+      form.role_profiles.map(({ name, ...profile }) => [
+        name.trim(),
+        profile as Resume["role_profiles"][string],
+      ]),
     ),
     standard_answers: Object.fromEntries(form.standard_answers.map(({ key, value }) => [key.trim(), value])),
     core_skills: Object.fromEntries(form.core_skills.map(({ name, skills }) => [name.trim(), skills])),
@@ -170,7 +186,8 @@ export function countChanges(a: unknown, b: unknown): number {
   if (a && b && typeof a === "object" && typeof b === "object") {
     const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
     let count = 0;
-    for (const key of keys) count += countChanges((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]);
+    for (const key of keys)
+      count += countChanges((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]);
     return count;
   }
   return (a ?? "") === (b ?? "") ? 0 : 1;

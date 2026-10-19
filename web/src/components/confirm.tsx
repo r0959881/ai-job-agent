@@ -51,14 +51,23 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
         <AlertDialogContent>
           <div className="space-y-2">
             <AlertDialogTitle>{options?.title}</AlertDialogTitle>
-            {options?.description && <AlertDialogDescription asChild><div>{options.description}</div></AlertDialogDescription>}
+            {options?.description && (
+              <AlertDialogDescription asChild>
+                <div>{options.description}</div>
+              </AlertDialogDescription>
+            )}
           </div>
           {options?.typeToConfirm && (
             <div className="space-y-1.5">
               <label htmlFor="confirm-type" className="text-body">
                 Type <span className="font-mono font-semibold">{options.typeToConfirm}</span> to confirm
               </label>
-              <Input id="confirm-type" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />
+              <Input
+                id="confirm-type"
+                autoComplete="off"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+              />
             </div>
           )}
           <div className="flex justify-end gap-2">

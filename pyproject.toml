@@ -3,6 +3,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["e2e: browser end-to-end tests against a built web app"]
 
 [tool.ruff]
 line-length = 120

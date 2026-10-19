@@ -18,15 +18,15 @@ class Sources(BaseModel):
 
 
 class AdzunaSettings(BaseModel):
-    country: str = Field("be", min_length=2, max_length=2)
+    country: str = Field(default="be", min_length=2, max_length=2)
     location: str = "Belgium"
-    results_per_page: int = Field(50, ge=1, le=50)
+    results_per_page: int = Field(default=50, ge=1, le=50)
 
 
 class GmailSettings(BaseModel):
     senders: list[str] = Field(default_factory=list)
-    lookback_days: int = Field(2, ge=1, le=30)
-    max_results: int = Field(100, ge=1, le=500)
+    lookback_days: int = Field(default=2, ge=1, le=30)
+    max_results: int = Field(default=100, ge=1, le=500)
 
     @field_validator("senders", mode="before")
     @classmethod
@@ -62,10 +62,10 @@ class SearchSettings(BaseModel):
     allowed_locations: list[str] = Field(min_length=1)
     blocked_locations: list[str] = Field(default_factory=list)
     trusted_alert_sources: list[str] = Field(default_factory=list)
-    time_window_hours: int = Field(48, ge=1, le=24 * 60)
-    sources: Sources = Field(default_factory=Sources)
-    adzuna: AdzunaSettings = Field(default_factory=AdzunaSettings)
-    gmail: GmailSettings = Field(default_factory=GmailSettings)
+    time_window_hours: int = Field(default=48, ge=1, le=24 * 60)
+    sources: Sources = Field(default_factory=lambda: Sources())
+    adzuna: AdzunaSettings = Field(default_factory=lambda: AdzunaSettings())
+    gmail: GmailSettings = Field(default_factory=lambda: GmailSettings())
     cover_letters: dict[str, CoverLetter] = Field(default_factory=dict)
     alerts: Alerts = Field(default_factory=Alerts)
 

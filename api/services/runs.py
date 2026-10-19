@@ -72,7 +72,7 @@ def read_events_file(path, after=0):
 
 def step_summary(events):
     """Collapse events into one state per step for the stepper."""
-    steps = {name: {"step": name, "label": STEP_LABELS[name], "status": "pending", "message": "",
+    steps: dict[str, dict] = {name: {"step": name, "label": STEP_LABELS[name], "status": "pending", "message": "",
                     "started_at": None, "finished_at": None, "data": {}} for name in STEPS}
     for entry in events:
         name = entry.get("step")
@@ -165,7 +165,8 @@ class RunManager:
             return run_id
 
     def _execute(self, state, options):
-        status, error, summary = "succeeded", "", {}
+        status, error = "succeeded", ""
+        summary: dict = {}
         try:
             summary = self.pipeline()(on_event=state.add, options=options, cancel_event=state.cancel,
                                       run_id=state.id, interactive=False) or {}

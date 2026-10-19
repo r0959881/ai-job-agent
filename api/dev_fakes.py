@@ -140,7 +140,7 @@ def install():
     os.environ.setdefault("ADZUNA_APP_ID", "demo")
     os.environ.setdefault("ADZUNA_APP_KEY", "demo")
     discovery.requests.get = _fake_get
-    tailor.Groq = FakeGroq
+    tailor.Groq = FakeGroq  # type: ignore[misc, assignment]
     main.get_client = lambda: FakeGroq()
     tailor.get_client = lambda: FakeGroq()
     gmail_parser.get_gmail_service = lambda interactive=True: FakeGmailService()

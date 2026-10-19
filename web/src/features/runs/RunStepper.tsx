@@ -43,18 +43,30 @@ export function RunStepper({ steps, now = Date.now() }: { steps: RunStep[]; now?
             <Icon className={cn("mt-0.5 size-6 shrink-0", className)} aria-label={label} />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-baseline gap-x-3">
-                <span className={cn("font-medium tabular", step.status === "pending" && "text-muted-foreground")}>
+                <span
+                  className={cn("font-medium tabular", step.status === "pending" && "text-muted-foreground")}
+                >
                   {title}
                 </span>
                 <span className="text-caption text-muted-foreground tabular">{stepDuration(step, now)}</span>
               </div>
               {step.message && step.status !== "pending" && (
-                <p className={cn("text-body text-muted-foreground", step.status === "warning" && "text-warning", step.status === "failed" && "text-danger")}>
+                <p
+                  className={cn(
+                    "text-body text-muted-foreground",
+                    step.status === "warning" && "text-warning",
+                    step.status === "failed" && "text-danger",
+                  )}
+                >
                   {step.message}
                 </p>
               )}
               {step.status === "running" && total ? (
-                <Progress value={((done ?? 0) / total) * 100} aria-label={`${step.label} progress`} className="max-w-sm" />
+                <Progress
+                  value={((done ?? 0) / total) * 100}
+                  aria-label={`${step.label} progress`}
+                  className="max-w-sm"
+                />
               ) : null}
               {action && (
                 <Link to={action.to} className={buttonVariants({ size: "sm", variant: "outline" })}>

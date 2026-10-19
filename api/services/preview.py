@@ -41,7 +41,7 @@ def sample_cv_html(data, role_family=None):
         f"{info.get('headline') or 'Your headline'}. This is where the tailored, 3-sentence summary for each job "
         "appears. The agent writes it from your resume facts for the role family you pick."
     )
-    first_bullets = []
+    first_bullets: list[str] = []
     for experience in data.get("experience") or []:
         first_bullets.extend((experience.get("bullets") or [])[:1])
     with tempfile.TemporaryDirectory() as folder:

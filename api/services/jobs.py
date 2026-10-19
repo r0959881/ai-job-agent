@@ -122,7 +122,7 @@ def keyword_match(job, resume):
     profile = (resume.get("role_profiles") or {}).get(job.get("role_family") or "", {})
     role_keywords = list(profile.get("keywords") or [])
     skills = [skill for skills in (resume.get("core_skills") or {}).values() for skill in skills]
-    candidates = []
+    candidates: list[str] = []
     for keyword in role_keywords + skills:
         short = re.sub(r"\s*\(.*?\)", "", keyword).strip()
         if short and short.lower() not in {c.lower() for c in candidates}:
@@ -281,15 +281,15 @@ def start_autofill(job_id, timeout=120):
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     process = subprocess.Popen(command, cwd=CODE_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                encoding="utf-8", errors="replace", env=os.environ.copy(), creationflags=creationflags)
-    lines = queue.Queue()
+    lines: queue.Queue[str | None] = queue.Queue()
 
     def reader():
-        for line in process.stdout:
+        for line in process.stdout or []:
             lines.put(line)
         lines.put(None)
 
     threading.Thread(target=reader, daemon=True).start()
-    output = []
+    output: list[str] = []
     deadline = datetime.now(UTC) + timedelta(seconds=timeout)
     while datetime.now(UTC) < deadline:
         try:

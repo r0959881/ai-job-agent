@@ -25,7 +25,11 @@ export function ThemeToggle() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {CHOICES.map(({ value, label, icon: Icon }) => (
-          <DropdownMenuCheckboxItem key={value} checked={choice === value} onCheckedChange={() => setChoice(value)}>
+          <DropdownMenuCheckboxItem
+            key={value}
+            checked={choice === value}
+            onCheckedChange={() => setChoice(value)}
+          >
             <Icon className="mr-2 size-4" aria-hidden />
             {label}
           </DropdownMenuCheckboxItem>

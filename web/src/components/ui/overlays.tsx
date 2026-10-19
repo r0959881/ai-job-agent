@@ -60,7 +60,11 @@ export const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn("text-body text-muted-foreground", className)} {...props} />
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn("text-body text-muted-foreground", className)}
+    {...props}
+  />
 ));
 DialogDescription.displayName = "DialogDescription";
 
@@ -68,7 +72,10 @@ DialogDescription.displayName = "DialogDescription";
 export const Sheet = DialogPrimitive.Root;
 export const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { side?: "left" | "right"; size?: "sm" | "lg" }
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    side?: "left" | "right";
+    size?: "sm" | "lg";
+  }
 >(({ className, children, side = "right", size = "lg", ...props }, ref) => (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className={overlayClass} />
@@ -129,14 +136,22 @@ export const AlertDialogDescription = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <AlertDialogPrimitive.Description ref={ref} className={cn("text-body text-muted-foreground", className)} {...props} />
+  <AlertDialogPrimitive.Description
+    ref={ref}
+    className={cn("text-body text-muted-foreground", className)}
+    {...props}
+  />
 ));
 AlertDialogDescription.displayName = "AlertDialogDescription";
 export const AlertDialogCancel = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Cancel>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>
 >(({ className, ...props }, ref) => (
-  <AlertDialogPrimitive.Cancel ref={ref} className={cn(buttonVariants({ variant: "outline" }), className)} {...props} />
+  <AlertDialogPrimitive.Cancel
+    ref={ref}
+    className={cn(buttonVariants({ variant: "outline" }), className)}
+    {...props}
+  />
 ));
 AlertDialogCancel.displayName = "AlertDialogCancel";
 export const AlertDialogAction = AlertDialogPrimitive.Action;
@@ -201,7 +216,10 @@ export const DropdownMenuSeparator = ({ className }: { className?: string }) => 
   <DropdownPrimitive.Separator className={cn("-mx-1 my-1 h-px bg-border", className)} />
 );
 export const DropdownMenuLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <DropdownPrimitive.Label className={cn("px-2 py-1.5 text-caption text-muted-foreground", className)} {...props} />
+  <DropdownPrimitive.Label
+    className={cn("px-2 py-1.5 text-caption text-muted-foreground", className)}
+    {...props}
+  />
 );
 
 /* ---------------- Popover ---------------- */

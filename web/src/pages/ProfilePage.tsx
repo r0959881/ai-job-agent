@@ -1,6 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Code2, Download, Eye, FileUp, History, Linkedin, RotateCcw, Save, Sparkles, UserRound } from "lucide-react";
+import {
+  Code2,
+  Download,
+  Eye,
+  FileUp,
+  History,
+  Linkedin,
+  RotateCcw,
+  Save,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 import * as React from "react";
 import { FormProvider, useForm, useWatch, type FieldPath } from "react-hook-form";
 import { Link, useBlocker, useNavigate, useSearchParams } from "react-router-dom";
@@ -9,7 +20,12 @@ import { PageHeader } from "@/components/common";
 import { useConfirm } from "@/components/confirm";
 import { EmptyState, ErrorState, SkeletonForm } from "@/components/states";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/overlays";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/overlays";
 import { CvPreviewPanel } from "@/features/profile/CvPreviewPanel";
 import { HistoryDrawer } from "@/features/profile/HistoryDrawer";
 import {
@@ -33,7 +49,9 @@ import {
 } from "@/features/profile/sections";
 import { ApiError, api } from "@/lib/api";
 
-const YamlEditor = React.lazy(() => import("@/features/profile/YamlEditor").then((m) => ({ default: m.YamlEditor })));
+const YamlEditor = React.lazy(() =>
+  import("@/features/profile/YamlEditor").then((m) => ({ default: m.YamlEditor })),
+);
 import { keys } from "@/lib/queries";
 import type { ResumeResponse, SettingsResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -43,7 +61,8 @@ function toFormPath(loc: string[], form: ProfileForm): string | null {
   const [section, key, ...rest] = loc;
   const byName = (items: { name?: string; key?: string }[], field: "name" | "key") =>
     items.findIndex((item) => item[field] === key);
-  if (section === "role_profiles") return `role_profiles.${byName(form.role_profiles, "name")}.${rest.join(".") || "name"}`;
+  if (section === "role_profiles")
+    return `role_profiles.${byName(form.role_profiles, "name")}.${rest.join(".") || "name"}`;
   if (section === "core_skills") return `core_skills.${byName(form.core_skills, "name")}.skills`;
   if (section === "standard_answers") return `standard_answers.${byName(form.standard_answers, "key")}.value`;
   if (section === "languages") return `languages.${key}.value`;
@@ -61,7 +80,10 @@ export default function ProfilePage() {
   const [activeSection, setActiveSection] = React.useState<string>(SECTIONS[0].id);
 
   const resume = useQuery({ queryKey: keys.resume, queryFn: () => api.get<ResumeResponse>("/api/resume") });
-  const settings = useQuery({ queryKey: keys.settings, queryFn: () => api.get<SettingsResponse>("/api/settings/search") });
+  const settings = useQuery({
+    queryKey: keys.settings,
+    queryFn: () => api.get<SettingsResponse>("/api/settings/search"),
+  });
   const targetRoles = Object.keys(settings.data?.settings.target_roles ?? {});
 
   const form = useForm<ProfileForm>({
@@ -113,10 +135,16 @@ export default function ProfilePage() {
           const path = toFormPath(item.loc, data);
           if (path) setError(path as FieldPath<ProfileForm>, { message: item.msg });
         });
-        toast.error("Some fields need fixing", { description: errors.slice(0, 2).map((e) => e.msg).join(" ") });
+        toast.error("Some fields need fixing", {
+          description: errors
+            .slice(0, 2)
+            .map((e) => e.msg)
+            .join(" "),
+        });
       } else if (error instanceof ApiError && error.status === 409) {
         toast.error("The resume changed on disk", {
-          description: "It was edited outside this page. Reload to get the latest version (your edits will be lost).",
+          description:
+            "It was edited outside this page. Reload to get the latest version (your edits will be lost).",
           action: { label: "Reload", onClick: () => discard(true) },
         });
       } else {
@@ -142,7 +170,9 @@ export default function ProfilePage() {
   );
 
   // Unsaved-changes guard for in-app navigation and tab close.
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname,
+  );
   React.useEffect(() => {
     if (blocker.state !== "blocked") return;
     confirm({
@@ -178,7 +208,9 @@ export default function ProfilePage() {
     if (yamlMode) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]) setActiveSection(visible[0].target.id);
       },
       { rootMargin: "-80px 0px -60% 0px" },
@@ -193,7 +225,10 @@ export default function ProfilePage() {
   const addExperience = params.get("add") === "experience";
   React.useEffect(() => {
     if (addExperience && resume.data) {
-      window.setTimeout(() => document.getElementById("experience")?.scrollIntoView({ behavior: "smooth" }), 100);
+      window.setTimeout(
+        () => document.getElementById("experience")?.scrollIntoView({ behavior: "smooth" }),
+        100,
+      );
       const next = new URLSearchParams(params);
       next.delete("add");
       setParams(next, { replace: true });
@@ -239,11 +274,19 @@ export default function ProfilePage() {
             <History /> History
           </Button>
           {!yamlMode && (
-            <Button variant={previewOpen ? "secondary" : "outline"} onClick={() => setPreviewOpen((o) => !o)} aria-pressed={previewOpen}>
+            <Button
+              variant={previewOpen ? "secondary" : "outline"}
+              onClick={() => setPreviewOpen((o) => !o)}
+              aria-pressed={previewOpen}
+            >
               <Eye /> Preview CV
             </Button>
           )}
-          <Button variant={yamlMode ? "secondary" : "ghost"} onClick={() => (yamlMode ? setYamlMode(false) : openYaml())} aria-pressed={yamlMode}>
+          <Button
+            variant={yamlMode ? "secondary" : "ghost"}
+            onClick={() => (yamlMode ? setYamlMode(false) : openYaml())}
+            aria-pressed={yamlMode}
+          >
             <Code2 /> Advanced: Edit YAML
           </Button>
         </>
@@ -286,8 +329,8 @@ export default function ProfilePage() {
       <HistoryDrawer open={historyOpen} onOpenChange={setHistoryOpen} dirty={dirty} />
       {yamlMode ? (
         <React.Suspense fallback={<SkeletonForm fields={10} />}>
-            <YamlEditor onClose={() => setYamlMode(false)} />
-          </React.Suspense>
+          <YamlEditor onClose={() => setYamlMode(false)} />
+        </React.Suspense>
       ) : (
         <>
           {resume.data.empty && (
@@ -304,7 +347,10 @@ export default function ProfilePage() {
             />
           )}
           {warnings.length > 0 && (
-            <div className="mb-6 rounded-lg border border-warning/30 bg-warning-soft p-4 text-body" role="status">
+            <div
+              className="mb-6 rounded-lg border border-warning/30 bg-warning-soft p-4 text-body"
+              role="status"
+            >
               <p className="mb-1 font-medium text-warning">Check these references</p>
               <ul className="list-disc space-y-0.5 pl-5 text-foreground/80">
                 {warnings.map((warning) => (
@@ -313,7 +359,12 @@ export default function ProfilePage() {
               </ul>
             </div>
           )}
-          <div className={cn("grid gap-6", previewOpen ? "xl:grid-cols-[11rem_minmax(0,1fr)_26rem]" : "lg:grid-cols-[11rem_minmax(0,1fr)]")}>
+          <div
+            className={cn(
+              "grid gap-6",
+              previewOpen ? "xl:grid-cols-[11rem_minmax(0,1fr)_26rem]" : "lg:grid-cols-[11rem_minmax(0,1fr)]",
+            )}
+          >
             <nav aria-label="Profile sections" className="hidden lg:block">
               <ul className="sticky top-20 space-y-0.5">
                 {SECTIONS.map((section) => {
@@ -329,7 +380,9 @@ export default function ProfilePage() {
                         aria-current={activeSection === section.id ? "location" : undefined}
                       >
                         {section.label}
-                        {hasError && <span className="size-2 rounded-full bg-danger" aria-label="has errors" />}
+                        {hasError && (
+                          <span className="size-2 rounded-full bg-danger" aria-label="has errors" />
+                        )}
                       </a>
                     </li>
                   );
@@ -360,10 +413,17 @@ export default function ProfilePage() {
           </div>
           {dirty && (
             <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-overlay backdrop-blur">
-              <div className="mx-auto flex max-w-content items-center gap-3 px-4 py-3 md:px-8" role="region" aria-label="Unsaved changes">
+              <div
+                className="mx-auto flex max-w-content items-center gap-3 px-4 py-3 md:px-8"
+                role="region"
+                aria-label="Unsaved changes"
+              >
                 <p className="flex-1 text-body">
-                  <span className="font-medium tabular">{changeCount}</span> unsaved change{changeCount === 1 ? "" : "s"}
-                  {errorCount > 0 && <span className="ml-2 text-danger">· fix the highlighted fields first</span>}
+                  <span className="font-medium tabular">{changeCount}</span> unsaved change
+                  {changeCount === 1 ? "" : "s"}
+                  {errorCount > 0 && (
+                    <span className="ml-2 text-danger">· fix the highlighted fields first</span>
+                  )}
                 </p>
                 <Button variant="ghost" onClick={() => discard()}>
                   <RotateCcw /> Discard

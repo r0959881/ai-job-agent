@@ -173,3 +173,22 @@ def test_unknown_api_paths_return_json_404(client):
     response = client.get("/api/nope")
     assert response.status_code == 404
     assert "No API endpoint" in response.json()["detail"]
+
+
+def test_log_survives_a_console_that_cannot_print_emoji(monkeypatch):
+    import builtins
+
+    real_print = builtins.print
+    printed = []
+
+    def strict_print(message="", **kwargs):
+        if any(ord(c) > 127 for c in str(message)):
+            raise UnicodeEncodeError("charmap", str(message), 0, 1, "character maps to <undefined>")
+        printed.append(message)
+
+    monkeypatch.setattr(builtins, "print", strict_print)
+    try:
+        log("🚀 Running")
+    finally:
+        monkeypatch.setattr(builtins, "print", real_print)
+    assert printed == ["? Running"]

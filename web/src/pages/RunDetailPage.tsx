@@ -48,20 +48,28 @@ export default function RunDetailPage() {
 
   const cancel = useMutation({
     mutationFn: () => api.post(`/api/runs/${runId}/cancel`),
-    onSuccess: () => toast.info("Cancelling", { description: "The run stops after the current step or job finishes." }),
+    onSuccess: () =>
+      toast.info("Cancelling", { description: "The run stops after the current step or job finishes." }),
     onError: (error: Error) => toast.error("Could not cancel", { description: error.message }),
   });
 
-  const status = ended ? (events.at(-1)?.data?.run_status as string) ?? run.data?.status : run.data?.status;
+  const status = ended ? ((events.at(-1)?.data?.run_status as string) ?? run.data?.status) : run.data?.status;
   const steps = React.useMemo(
-    () => settleSteps(events.length ? reduceSteps(events) : run.data?.steps ?? [], status ?? "running"),
+    () => settleSteps(events.length ? reduceSteps(events) : (run.data?.steps ?? []), status ?? "running"),
     [events, run.data?.steps, status],
   );
   const lines = React.useMemo(() => toLogLines(events), [events]);
   const cancelling = events.some((event) => event.status === "cancelling");
 
   if (run.isPending) return <SkeletonRows rows={10} />;
-  if (run.isError) return <ErrorState title={`Run #${runId} could not be loaded`} error={run.error} onRetry={() => run.refetch()} />;
+  if (run.isError)
+    return (
+      <ErrorState
+        title={`Run #${runId} could not be loaded`}
+        error={run.error}
+        onRetry={() => run.refetch()}
+      />
+    );
 
   const data = run.data;
   const started = parseDate(data.started_at);
@@ -69,7 +77,10 @@ export default function RunDetailPage() {
 
   return (
     <>
-      <Link to="/runs" className="mb-3 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground">
+      <Link
+        to="/runs"
+        className="mb-3 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="size-4" /> All runs
       </Link>
       <PageHeader
@@ -91,7 +102,8 @@ export default function RunDetailPage() {
                 onClick={async () => {
                   const ok = await confirm({
                     title: "Cancel this run?",
-                    description: "The current step or CV finishes first. Jobs and CVs already saved are kept.",
+                    description:
+                      "The current step or CV finishes first. Jobs and CVs already saved are kept.",
                     confirmLabel: "Cancel run",
                     destructive: true,
                   });
@@ -107,7 +119,9 @@ export default function RunDetailPage() {
       {!running && status !== "running" && (
         <Card className="mb-6">
           <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-2 pt-4 tabular">
-            <p className="w-full text-body">{runSummaryText({ ...data, status: (status as Run["status"]) ?? data.status })}</p>
+            <p className="w-full text-body">
+              {runSummaryText({ ...data, status: (status as Run["status"]) ?? data.status })}
+            </p>
             {[
               ["Found", data.discovered],
               ["New", data.new],
@@ -136,7 +150,7 @@ export default function RunDetailPage() {
           </CardContent>
         </Card>
       )}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Steps</CardTitle>
@@ -157,9 +171,15 @@ export default function RunDetailPage() {
                   <ul className="divide-y">
                     {data.documents.map((doc) => (
                       <li key={doc.id} className="flex items-center gap-3 py-2">
-                        {doc.kind === "report" ? <FileSpreadsheet className="size-4 text-success" /> : <FileText className="size-4 text-info" />}
+                        {doc.kind === "report" ? (
+                          <FileSpreadsheet className="size-4 text-success" />
+                        ) : (
+                          <FileText className="size-4 text-info" />
+                        )}
                         <div className="min-w-0 flex-1">
-                          <p className="truncate">{doc.job_title ? `${doc.job_title} · ${doc.job_company}` : doc.name}</p>
+                          <p className="truncate">
+                            {doc.job_title ? `${doc.job_title} · ${doc.job_company}` : doc.name}
+                          </p>
                           <p className="truncate text-caption text-muted-foreground">{doc.name}</p>
                         </div>
                         {doc.kind !== "report" && doc.exists && (
@@ -168,7 +188,10 @@ export default function RunDetailPage() {
                           </Button>
                         )}
                         {doc.exists ? (
-                          <a className={buttonVariants({ size: "sm", variant: "outline" })} href={`/api/documents/${doc.id}/download`}>
+                          <a
+                            className={buttonVariants({ size: "sm", variant: "outline" })}
+                            href={`/api/documents/${doc.id}/download`}
+                          >
                             Download
                           </a>
                         ) : (
@@ -178,7 +201,11 @@ export default function RunDetailPage() {
                     ))}
                   </ul>
                 ) : (
-                  <EmptyState title="No documents" description="This run did not tailor any CVs." className="py-6" />
+                  <EmptyState
+                    title="No documents"
+                    description="This run did not tailor any CVs."
+                    className="py-6"
+                  />
                 )}
               </CardContent>
             </Card>

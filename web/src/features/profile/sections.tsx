@@ -130,15 +130,29 @@ function ItemCard({
             <span className={cn("block truncate font-medium", !title && "italic text-muted-foreground")}>
               {title || "Untitled"}
             </span>
-            {subtitle && <span className="block truncate text-caption text-muted-foreground">{subtitle}</span>}
+            {subtitle && (
+              <span className="block truncate text-caption text-muted-foreground">{subtitle}</span>
+            )}
           </span>
         </button>
         {onDuplicate && (
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onDuplicate} aria-label={`Duplicate ${label}`}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onDuplicate}
+            aria-label={`Duplicate ${label}`}
+          >
             <Copy />
           </Button>
         )}
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label={`Delete ${label}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          aria-label={`Delete ${label}`}
+        >
           <Trash2 />
         </Button>
       </div>
@@ -196,8 +210,16 @@ function useListSection<Name extends FieldArrayPath<ProfileForm>>(name: Name, no
 
 export function PersonalInfoSection() {
   return (
-    <SectionCard id="personal" title="Personal info" description="Shown at the top of every CV and cover letter.">
-      <TextField path="personal_info.full_name" label="Full name" description="Also used to name generated files." />
+    <SectionCard
+      id="personal"
+      title="Personal info"
+      description="Shown at the top of every CV and cover letter."
+    >
+      <TextField
+        path="personal_info.full_name"
+        label="Full name"
+        description="Also used to name generated files."
+      />
       <TextField
         path="personal_info.headline"
         label="Headline"
@@ -259,14 +281,14 @@ export function RoleProfilesSection({ targetRoles }: { targetRoles: string[] }) 
           renderItem={(field, index, handle) => (
             <div data-item>
               <ItemCard
-                title={(values_role_profiles[index]?.name ?? "")}
-                subtitle={(values_role_profiles[index]?.focus ?? "")}
+                title={values_role_profiles[index]?.name ?? ""}
+                subtitle={values_role_profiles[index]?.focus ?? ""}
                 handle={handle}
                 label={`role profile ${index + 1}`}
                 open={list.open.has(field.id) || list.hasError(index)}
                 onToggle={() => list.toggle(field.id)}
                 onDuplicate={() => list.duplicate(index)}
-                onDelete={() => list.removeWithUndo(index, (values_role_profiles[index]?.name ?? ""))}
+                onDelete={() => list.removeWithUndo(index, values_role_profiles[index]?.name ?? "")}
                 hasError={list.hasError(index)}
               >
                 <TextField
@@ -283,7 +305,11 @@ export function RoleProfilesSection({ targetRoles }: { targetRoles: string[] }) 
                   control={control}
                   name={`role_profiles.${index}.keywords`}
                   render={({ field: f }) => (
-                    <Field label="Keywords" htmlFor={fieldId(f.name)} description="Listed as “Key skills” on the CV.">
+                    <Field
+                      label="Keywords"
+                      htmlFor={fieldId(f.name)}
+                      description="Listed as “Key skills” on the CV."
+                    >
                       <TagInput id={fieldId(f.name)} value={f.value} onChange={f.onChange} />
                     </Field>
                   )}
@@ -292,7 +318,11 @@ export function RoleProfilesSection({ targetRoles }: { targetRoles: string[] }) 
                   control={control}
                   name={`role_profiles.${index}.preferred_skill_categories`}
                   render={({ field: f }) => (
-                    <Field label="Skill categories on the CV" htmlFor={fieldId(f.name)} description="Empty means all.">
+                    <Field
+                      label="Skill categories on the CV"
+                      htmlFor={fieldId(f.name)}
+                      description="Empty means all."
+                    >
                       <MultiSelect
                         id={fieldId(f.name)}
                         value={f.value}
@@ -308,7 +338,11 @@ export function RoleProfilesSection({ targetRoles }: { targetRoles: string[] }) 
                   control={control}
                   name={`role_profiles.${index}.preferred_projects`}
                   render={({ field: f }) => (
-                    <Field label="Projects on the CV" htmlFor={fieldId(f.name)} description="Empty means all.">
+                    <Field
+                      label="Projects on the CV"
+                      htmlFor={fieldId(f.name)}
+                      description="Empty means all."
+                    >
                       <MultiSelect
                         id={fieldId(f.name)}
                         value={f.value}
@@ -350,7 +384,8 @@ function useRenamePropagation(kind: "preferred_skill_categories" | "preferred_pr
           );
         }
       });
-      if (touched) toast.info(`Updated ${touched} role profile${touched === 1 ? "" : "s"} to use “${value}”.`);
+      if (touched)
+        toast.info(`Updated ${touched} role profile${touched === 1 ? "" : "s"} to use “${value}”.`);
     },
   };
 }
@@ -366,7 +401,12 @@ export function SkillsSection() {
       title="Skills"
       description="Grouped by category. Role profiles choose which categories each CV shows."
       actions={
-        <Button type="button" size="sm" variant="outline" onClick={() => list.append({ name: "", skills: [] })}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => list.append({ name: "", skills: [] })}
+        >
           <Plus /> Add category
         </Button>
       }
@@ -388,7 +428,7 @@ export function SkillsSection() {
                       label="Category"
                       htmlFor={fieldId(`core_skills.${index}.name`)}
                       error={get(formState.errors, `core_skills.${index}.name`)?.message}
-                      description={humanize((values_core_skills[index]?.name ?? "")) || undefined}
+                      description={humanize(values_core_skills[index]?.name ?? "") || undefined}
                     >
                       <Input
                         id={fieldId(`core_skills.${index}.name`)}
@@ -419,9 +459,7 @@ export function SkillsSection() {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`Delete skill category ${index + 1}`}
-                    onClick={() =>
-                      list.removeWithUndo(index, (values_core_skills[index]?.name ?? ""))
-                    }
+                    onClick={() => list.removeWithUndo(index, values_core_skills[index]?.name ?? "")}
                   >
                     <Trash2 />
                   </Button>
@@ -464,13 +502,13 @@ export function ExperienceSection({ autoAdd }: { autoAdd?: boolean }) {
           onMove={list.move}
           className="space-y-2"
           renderItem={(field, index, handle) => {
-            const role = (values_experience[index]?.role ?? "");
-            const company = (values_experience[index]?.company ?? "");
+            const role = values_experience[index]?.role ?? "";
+            const company = values_experience[index]?.company ?? "";
             return (
               <div data-item>
                 <ItemCard
                   title={[role, company].filter(Boolean).join(" · ")}
-                  subtitle={(values_experience[index]?.dates ?? "")}
+                  subtitle={values_experience[index]?.dates ?? ""}
                   handle={handle}
                   label={`experience ${index + 1}`}
                   open={list.open.has(field.id) || list.hasError(index)}
@@ -483,7 +521,11 @@ export function ExperienceSection({ autoAdd }: { autoAdd?: boolean }) {
                     <TextField path={`experience.${index}.role`} label="Role" />
                     <TextField path={`experience.${index}.company`} label="Company" />
                     <TextField path={`experience.${index}.location`} label="Location" />
-                    <TextField path={`experience.${index}.dates`} label="Dates" placeholder="Jun 2026 - Present" />
+                    <TextField
+                      path={`experience.${index}.dates`}
+                      label="Dates"
+                      placeholder="Jun 2026 - Present"
+                    />
                   </div>
                   <TextField
                     path={`experience.${index}.type`}
@@ -494,8 +536,16 @@ export function ExperienceSection({ autoAdd }: { autoAdd?: boolean }) {
                     control={control}
                     name={`experience.${index}.bullets`}
                     render={({ field: f }) => (
-                      <Field label="Bullets" description="Drag to reorder. Ctrl+Enter adds a new bullet below.">
-                        <StringListEditor value={f.value} onChange={f.onChange} itemLabel="Bullet" addLabel="Add bullet" />
+                      <Field
+                        label="Bullets"
+                        description="Drag to reorder. Ctrl+Enter adds a new bullet below."
+                      >
+                        <StringListEditor
+                          value={f.value}
+                          onChange={f.onChange}
+                          itemLabel="Bullet"
+                          addLabel="Add bullet"
+                        />
                       </Field>
                     )}
                   />
@@ -532,14 +582,14 @@ export function ProjectsSection() {
           onMove={list.move}
           className="space-y-2"
           renderItem={(field, index, handle) => {
-            const title = (values_projects[index]?.title ?? "");
+            const title = values_projects[index]?.title ?? "";
             const titleField = register(`projects.${index}.title`);
             const error = get(formState.errors, `projects.${index}.title`)?.message;
             return (
               <div data-item>
                 <ItemCard
                   title={title}
-                  subtitle={(values_projects[index]?.tech_stack ?? "")}
+                  subtitle={values_projects[index]?.tech_stack ?? ""}
                   handle={handle}
                   label={`project ${index + 1}`}
                   open={list.open.has(field.id) || list.hasError(index)}
@@ -548,8 +598,12 @@ export function ProjectsSection() {
                   onDelete={() => list.removeWithUndo(index, title)}
                   hasError={list.hasError(index)}
                 >
-                  <Field label="Title" htmlFor={fieldId(`projects.${index}.title`)} error={error}
-                    description="Renaming updates every role profile that lists this project.">
+                  <Field
+                    label="Title"
+                    htmlFor={fieldId(`projects.${index}.title`)}
+                    error={error}
+                    description="Renaming updates every role profile that lists this project."
+                  >
                     <Input
                       id={fieldId(`projects.${index}.title`)}
                       aria-invalid={error ? true : undefined}
@@ -589,7 +643,11 @@ export function ProjectsSection() {
 export function EducationSection() {
   const { control } = useFormContext<ProfileForm>();
   return (
-    <SectionCard id="education" title="Education" description="Your most recent degree. The CV shows one entry.">
+    <SectionCard
+      id="education"
+      title="Education"
+      description="Your most recent degree. The CV shows one entry."
+    >
       <TextField path="education.degree" label="Degree" />
       <TextField path="education.institution" label="Institution" />
       <div className="grid gap-4 md:grid-cols-2">
@@ -630,12 +688,15 @@ export function CertificationsSection() {
           onMove={list.move}
           className="space-y-2"
           renderItem={(field, index, handle) => {
-            const name = (values_certifications[index]?.name ?? "");
+            const name = values_certifications[index]?.name ?? "";
             return (
               <div data-item>
                 <ItemCard
                   title={name}
-                  subtitle={[(values_certifications[index]?.issuer ?? ""), (values_certifications[index]?.year ?? "")]
+                  subtitle={[
+                    values_certifications[index]?.issuer ?? "",
+                    values_certifications[index]?.year ?? "",
+                  ]
                     .filter(Boolean)
                     .join(", ")}
                   handle={handle}
@@ -747,7 +808,10 @@ export function StandardAnswersSection() {
                     />
                     {keyError && <p className="mt-1 text-caption text-danger">{keyError}</p>}
                   </div>
-                  <Input aria-label={`Answer ${index + 1}`} {...register(`standard_answers.${index}.value`)} />
+                  <Input
+                    aria-label={`Answer ${index + 1}`}
+                    {...register(`standard_answers.${index}.value`)}
+                  />
                 </div>
                 <Button
                   type="button"

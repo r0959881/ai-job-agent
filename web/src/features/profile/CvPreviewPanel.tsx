@@ -30,7 +30,8 @@ export function CvPreviewPanel({
 
   const preview = useQuery({
     queryKey: ["resume-preview", role, debounced],
-    queryFn: () => api.post<{ html: string }>("/api/resume/preview", { data: debounced, role_family: role || null }),
+    queryFn: () =>
+      api.post<{ html: string }>("/api/resume/preview", { data: debounced, role_family: role || null }),
     placeholderData: (previous) => previous,
     staleTime: Infinity,
   });

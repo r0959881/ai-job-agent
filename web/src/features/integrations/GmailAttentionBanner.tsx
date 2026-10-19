@@ -7,10 +7,18 @@ import { cn } from "@/lib/utils";
 /** Shown on the dashboard and in the start-run dialog whenever Gmail needs attention. */
 export function GmailAttentionBanner({ compact = false }: { compact?: boolean }) {
   const { data } = useGmailStatus();
-  if (!data || data.state === "connected" || (data.state === "not_connected" && compact && !data.credentials_present))
+  if (
+    !data ||
+    data.state === "connected" ||
+    (data.state === "not_connected" && compact && !data.credentials_present)
+  )
     return null;
   const reauth = data.state === "reauth_required";
-  const title = reauth ? "Gmail needs to be reconnected" : data.state === "error" ? "Gmail has a problem" : "Gmail is not connected";
+  const title = reauth
+    ? "Gmail needs to be reconnected"
+    : data.state === "error"
+      ? "Gmail has a problem"
+      : "Gmail is not connected";
   const text = reauth
     ? "Google stopped accepting the saved sign-in, so runs skip Gmail alerts until you reconnect."
     : data.state === "error"

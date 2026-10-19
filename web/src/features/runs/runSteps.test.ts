@@ -2,7 +2,12 @@ import { reduceSteps, settleSteps, toLogLines } from "@/features/runs/runSteps";
 import type { RunEvent } from "@/lib/types";
 
 let seq = 0;
-const ev = (step: string | null, status: string, message = "", data: Record<string, unknown> = {}): RunEvent => ({
+const ev = (
+  step: string | null,
+  status: string,
+  message = "",
+  data: Record<string, unknown> = {},
+): RunEvent => ({
   seq: ++seq,
   ts: new Date(2026, 0, 1, 12, 0, seq).toISOString(),
   step,
@@ -23,7 +28,15 @@ describe("reduceSteps", () => {
     ];
     const steps = reduceSteps(events);
     const byName = Object.fromEntries(steps.map((s) => [s.step, s]));
-    expect(steps.map((s) => s.step)).toEqual(["init_db", "adzuna", "arbeitnow", "gmail", "filter", "tailoring", "report"]);
+    expect(steps.map((s) => s.step)).toEqual([
+      "init_db",
+      "adzuna",
+      "arbeitnow",
+      "gmail",
+      "filter",
+      "tailoring",
+      "report",
+    ]);
     expect(byName.init_db.status).toBe("succeeded");
     expect(byName.adzuna.status).toBe("skipped");
     expect(byName.arbeitnow.status).toBe("pending");

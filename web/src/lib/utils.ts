@@ -1,5 +1,11 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// Our type scale (text-caption/body/section/title) is a font size, not a colour; without this,
+// twMerge would drop text-primary-foreground from small buttons and leave dark text on indigo.
+const twMerge = extendTailwindMerge({
+  extend: { classGroups: { "font-size": [{ text: ["caption", "body", "section", "title"] }] } },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -18,7 +24,9 @@ const relativeFormat = new Intl.RelativeTimeFormat("en", { numeric: "auto", styl
 export function parseDate(value?: string | null): Date | null {
   if (!value) return null;
   // SQLite's datetime('now') has no zone and is UTC.
-  const normalised = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+  const normalised = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
+    ? `${value.replace(" ", "T")}Z`
+    : value;
   const date = new Date(normalised);
   return Number.isNaN(date.getTime()) ? null : date;
 }

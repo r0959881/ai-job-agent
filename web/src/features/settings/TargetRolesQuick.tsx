@@ -13,7 +13,10 @@ import type { SettingsResponse } from "@/lib/types";
 /** Onboarding's short version of Settings → Search: pick which role families to search for. */
 export function TargetRolesQuick() {
   const queryClient = useQueryClient();
-  const settings = useQuery({ queryKey: keys.settings, queryFn: () => api.get<SettingsResponse>("/api/settings/search") });
+  const settings = useQuery({
+    queryKey: keys.settings,
+    queryFn: () => api.get<SettingsResponse>("/api/settings/search"),
+  });
   const [name, setName] = React.useState("");
   const [keywords, setKeywords] = React.useState<string[]>([]);
   const save = useMutation({
@@ -22,7 +25,9 @@ export function TargetRolesQuick() {
       const queries = Object.fromEntries(
         Object.keys(roles).map((role) => [role, current.search_queries[role] ?? roles[role].slice(0, 2)]),
       );
-      return api.put<SettingsResponse>("/api/settings/search", { settings: { ...current, target_roles: roles, search_queries: queries } });
+      return api.put<SettingsResponse>("/api/settings/search", {
+        settings: { ...current, target_roles: roles, search_queries: queries },
+      });
     },
     onSuccess: (result) => {
       queryClient.setQueryData(keys.settings, result);
@@ -38,18 +43,23 @@ export function TargetRolesQuick() {
       <div>
         <h3 className="text-section">Target roles</h3>
         <p className="text-body text-muted-foreground">
-          The agent searches for these role families and picks the matching role profile for each CV. Fine-tune keywords
-          later in Settings → Search.
+          The agent searches for these role families and picks the matching role profile for each CV.
+          Fine-tune keywords later in Settings → Search.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
         {Object.entries(roles).map(([role, words]) => (
-          <Badge key={role} variant="accent" className="gap-1 py-1 pl-3 pr-1 text-body" title={words.join(", ")}>
+          <Badge
+            key={role}
+            variant="accent"
+            className="gap-1 py-1 pl-3 pr-1 text-body"
+            title={words.join(", ")}
+          >
             {role}
             <button
               type="button"
               aria-label={`Remove ${role}`}
-              className="rounded-full p-0.5 hover:bg-primary/15"
+              className="-my-1 rounded-full p-1.5 hover:bg-primary/15"
               disabled={Object.keys(roles).length === 1 || save.isPending}
               onClick={() => {
                 const next = { ...roles };
@@ -76,10 +86,20 @@ export function TargetRolesQuick() {
         }}
       >
         <Field label="New role" htmlFor="role-name">
-          <Input id="role-name" placeholder="e.g. BI Developer" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input
+            id="role-name"
+            placeholder="e.g. BI Developer"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </Field>
         <Field label="Title keywords" htmlFor="role-keywords">
-          <TagInput id="role-keywords" value={keywords} onChange={setKeywords} placeholder="bi developer, power bi developer" />
+          <TagInput
+            id="role-keywords"
+            value={keywords}
+            onChange={setKeywords}
+            placeholder="bi developer, power bi developer"
+          />
         </Field>
         <Button type="submit" variant="outline" loading={save.isPending}>
           <Plus /> Add role

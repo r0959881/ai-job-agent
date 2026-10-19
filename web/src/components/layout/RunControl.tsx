@@ -46,7 +46,9 @@ export function RunControl() {
         aria-live="polite"
       >
         <Loader2 className="size-4 animate-spin" aria-hidden />
-        <span className="tabular">Run #{data.active_id}: {describeActiveStep(active?.steps)}</span>
+        <span className="tabular">
+          Run #{data.active_id}: {describeActiveStep(active?.steps)}
+        </span>
       </Link>
     );
   }

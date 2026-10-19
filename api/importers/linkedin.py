@@ -235,7 +235,7 @@ def open_known_files(data, warnings):
 
 def parse_linkedin_zip(data):
     """Pure: zip bytes -> (draft resume dict, warnings, extras {skills_pool, education_alternatives})."""
-    warnings = []
+    warnings: list[str] = []
     files = open_known_files(data, warnings)
     if not files:
         raise LinkedInImportError(
@@ -315,7 +315,7 @@ def parse_linkedin_zip(data):
             projects.append({"title": row["title"], "tech_stack": "",
                              "highlights": split_bullets(row.get("description", ""))})
 
-    skills_pool = []
+    skills_pool: list[str] = []
     for row in rows.get("skills") or []:
         name = row.get("name", "").strip()
         if name and name.lower() not in {s.lower() for s in skills_pool}:

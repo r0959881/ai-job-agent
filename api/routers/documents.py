@@ -115,7 +115,7 @@ def delete_document_file(row):
         pass
     except PermissionError as exc:
         raise HTTPException(409, f"{path.name} is open in another program. Close it and try again.") from exc
-    statements = [("DELETE FROM documents WHERE id = ?", (row["id"],))]
+    statements: list[tuple[str, tuple]] = [("DELETE FROM documents WHERE id = ?", (row["id"],))]
     if row.get("job_id"):
         column = "cv_path" if row["kind"] == "cv" else "cover_letter_path" if row["kind"] == "cover_letter" else None
         if column:

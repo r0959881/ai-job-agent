@@ -20,11 +20,17 @@ function LinkedInPanel() {
       <Card className="space-y-3 p-4">
         <h3 className="text-section">LinkedIn jobs come through Gmail</h3>
         <p className="max-w-prose text-body text-muted-foreground">
-          LinkedIn has no personal API for job listings. Instead, create LinkedIn job alerts (for example “Junior Data
-          Engineer” in Belgium, daily). The alert emails arrive in Gmail, and each run reads them when Gmail is connected.
+          LinkedIn has no personal API for job listings. Instead, create LinkedIn job alerts (for example
+          “Junior Data Engineer” in Belgium, daily). The alert emails arrive in Gmail, and each run reads them
+          when Gmail is connected.
         </p>
         <div className="flex flex-wrap gap-2">
-          <a className={buttonVariants({ variant: "outline" })} href="https://www.linkedin.com/jobs/" target="_blank" rel="noopener noreferrer">
+          <a
+            className={buttonVariants({ variant: "outline" })}
+            href="https://www.linkedin.com/jobs/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             LinkedIn Jobs (create an alert) <ExternalLink />
           </a>
           <Link className={buttonVariants({ variant: "ghost" })} to="/settings/integrations#gmail">
@@ -35,8 +41,8 @@ function LinkedInPanel() {
       <Card className="space-y-3 p-4">
         <h3 className="text-section">Import your profile</h3>
         <p className="max-w-prose text-body text-muted-foreground">
-          Bring your positions, education, skills, certifications and languages in from LinkedIn's data export. You review
-          every change before it touches your profile.
+          Bring your positions, education, skills, certifications and languages in from LinkedIn's data
+          export. You review every change before it touches your profile.
         </p>
         <Link className={buttonVariants()} to="/onboarding?source=linkedin&return=/settings/linkedin">
           <Linkedin /> Import profile from LinkedIn export
@@ -57,7 +63,9 @@ function DataPanel() {
   const reset = useMutation({
     mutationFn: () => api.post<{ deleted: number }>("/api/data/reset-jobs", { confirm: "RESET" }),
     onSuccess: (result) => {
-      toast.success(`Deleted ${result.deleted} job(s)`, { description: "Your resume, settings and files were kept." });
+      toast.success(`Deleted ${result.deleted} job(s)`, {
+        description: "Your resume, settings and files were kept.",
+      });
       queryClient.invalidateQueries();
     },
     onError: (error: Error) => toast.error("Reset failed", { description: error.message }),
@@ -67,7 +75,9 @@ function DataPanel() {
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <div className="flex-1">
           <h3 className="text-section">Output folder</h3>
-          <p className="text-body text-muted-foreground">All generated CVs, cover letters, reports and run logs.</p>
+          <p className="text-body text-muted-foreground">
+            All generated CVs, cover letters, reports and run logs.
+          </p>
         </div>
         <Button variant="outline" onClick={() => open.mutate()} loading={open.isPending}>
           <FolderOpen /> Open folder
@@ -76,7 +86,10 @@ function DataPanel() {
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <div className="flex-1">
           <h3 className="text-section">Export everything</h3>
-          <p className="text-body text-muted-foreground">A .zip of resume_data.yaml, agent_settings.yaml, jobs.db and output/. API keys and Google tokens are never included.</p>
+          <p className="text-body text-muted-foreground">
+            A .zip of resume_data.yaml, agent_settings.yaml, jobs.db and output/. API keys and Google tokens
+            are never included.
+          </p>
         </div>
         <a className={buttonVariants({ variant: "outline" })} href="/api/data/export">
           <Download /> Download export
@@ -85,7 +98,9 @@ function DataPanel() {
       <Card className="flex flex-wrap items-center gap-3 border-danger/30 p-4">
         <div className="flex-1">
           <h3 className="text-section text-danger">Reset the jobs database</h3>
-          <p className="text-body text-muted-foreground">Deletes every job and its application tracking. Your resume, settings, run history and files stay.</p>
+          <p className="text-body text-muted-foreground">
+            Deletes every job and its application tracking. Your resume, settings, run history and files stay.
+          </p>
         </div>
         <Button
           variant="danger"
@@ -93,7 +108,8 @@ function DataPanel() {
           onClick={async () => {
             const ok = await confirm({
               title: "Reset the jobs database?",
-              description: "Every job, status, note and follow-up date is deleted. This cannot be undone. Export first if you want a copy.",
+              description:
+                "Every job, status, note and follow-up date is deleted. This cannot be undone. Export first if you want a copy.",
               confirmLabel: "Delete all jobs",
               destructive: true,
               typeToConfirm: "RESET",
@@ -115,7 +131,10 @@ export default function SettingsPage() {
   const active = (TABS as readonly string[]).includes(tab) ? tab : "search";
   return (
     <>
-      <PageHeader title="Settings" description="What the agent searches for, the services it uses, and your data." />
+      <PageHeader
+        title="Settings"
+        description="What the agent searches for, the services it uses, and your data."
+      />
       <Tabs value={active} onValueChange={(value) => navigate(`/settings/${value}`, { replace: true })}>
         <TabsList>
           <TabsTrigger value="search">Search</TabsTrigger>
@@ -129,7 +148,9 @@ export default function SettingsPage() {
         <TabsContent value="integrations">
           <div className="grid max-w-5xl gap-6 xl:grid-cols-2">
             <SecretsPanel />
-            <div><GmailCard /></div>
+            <div>
+              <GmailCard />
+            </div>
           </div>
         </TabsContent>
         <TabsContent value="linkedin">

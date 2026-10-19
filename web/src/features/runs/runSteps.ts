@@ -30,7 +30,11 @@ export function reduceSteps(events: RunEvent[]): RunStep[] {
       current.message = event.message;
       current.started_at ??= event.ts;
     } else if ((FINAL as string[]).includes(event.status)) {
-      Object.assign(current, { status: event.status as StepStatus, finished_at: event.ts, message: event.message });
+      Object.assign(current, {
+        status: event.status as StepStatus,
+        finished_at: event.ts,
+        message: event.message,
+      });
       current.started_at ??= event.ts;
     }
     current.data = { ...current.data, ...event.data };
@@ -66,7 +70,8 @@ export function toLogLines(events: RunEvent[]): LogLine[] {
       const raw = String(event.data?.level ?? "info");
       level = raw === "error" ? "error" : raw === "warning" ? "warning" : "info";
     } else if (event.status === "failed") level = "error";
-    else if (event.status === "warning" || event.status === "cancelling" || event.status === "cancelled") level = "warning";
+    else if (event.status === "warning" || event.status === "cancelling" || event.status === "cancelled")
+      level = "warning";
     lines.push({ seq: event.seq, ts: event.ts, level, step: event.step, text: event.message });
   }
   return lines;

@@ -13,23 +13,42 @@ import { formatDuration } from "@/lib/utils";
 const num = (value: number) => <span className="tabular">{value}</span>;
 
 const columns: ColumnDef<Run, unknown>[] = [
-  { accessorKey: "id", header: "Run", cell: ({ row }) => <span className="tabular font-medium">#{row.original.id}</span>, size: 70 },
-  { accessorKey: "started_at", header: "Started", cell: ({ row }) => <RelativeTime value={row.original.started_at} /> },
+  {
+    accessorKey: "id",
+    header: "Run",
+    cell: ({ row }) => <span className="tabular font-medium">#{row.original.id}</span>,
+    size: 70,
+  },
+  {
+    accessorKey: "started_at",
+    header: "Started",
+    cell: ({ row }) => <RelativeTime value={row.original.started_at} />,
+  },
   {
     accessorKey: "duration_seconds",
     header: "Duration",
     cell: ({ row }) => (
-      <span className="tabular">{row.original.status === "running" ? "Running…" : formatDuration(row.original.duration_seconds)}</span>
+      <span className="tabular">
+        {row.original.status === "running" ? "Running…" : formatDuration(row.original.duration_seconds)}
+      </span>
     ),
   },
-  { accessorKey: "status", header: "Status", cell: ({ row }) => <RunStatusBadge status={row.original.status} /> },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => <RunStatusBadge status={row.original.status} />,
+  },
   { accessorKey: "new", header: "New jobs", cell: ({ row }) => num(row.original.new) },
   { accessorKey: "filtered", header: "Filtered", cell: ({ row }) => num(row.original.filtered) },
   { accessorKey: "tailored", header: "CVs", cell: ({ row }) => num(row.original.tailored) },
   {
     accessorKey: "failed",
     header: "Failed",
-    cell: ({ row }) => <span className={row.original.failed ? "tabular font-medium text-danger" : "tabular"}>{row.original.failed}</span>,
+    cell: ({ row }) => (
+      <span className={row.original.failed ? "tabular font-medium text-danger" : "tabular"}>
+        {row.original.failed}
+      </span>
+    ),
   },
   {
     id: "options",
@@ -37,7 +56,11 @@ const columns: ColumnDef<Run, unknown>[] = [
     enableSorting: false,
     cell: ({ row }) => {
       const o = row.original.options ?? {};
-      const parts = [o.dry_run ? "Dry run" : null, o.sources ? o.sources.join(", ") : "All sources", o.max_tailor != null ? `max ${o.max_tailor} CVs` : null];
+      const parts = [
+        o.dry_run ? "Dry run" : null,
+        o.sources ? o.sources.join(", ") : "All sources",
+        o.max_tailor != null ? `max ${o.max_tailor} CVs` : null,
+      ];
       return <span className="text-caption text-muted-foreground">{parts.filter(Boolean).join(" · ")}</span>;
     },
   },

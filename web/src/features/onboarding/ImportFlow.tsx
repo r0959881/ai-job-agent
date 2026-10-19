@@ -30,17 +30,28 @@ function LinkedInHowTo() {
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
         <li>
           On LinkedIn open <strong>Settings → Data privacy → Get a copy of your data</strong> (
-          <a className="text-primary underline-offset-4 hover:underline" href="https://www.linkedin.com/mypreferences/d/download-my-data" target="_blank" rel="noopener noreferrer">
+          <a
+            className="text-primary underline underline-offset-4 hover:decoration-2"
+            href="https://www.linkedin.com/mypreferences/d/download-my-data"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             open it directly
           </a>
           ).
         </li>
         <li>
-          Choose <strong>“Want something in particular?”</strong> and tick Profile, Positions, Education, Skills,
-          Certifications, Languages and Projects. That is enough.
+          Choose <strong>“Want something in particular?”</strong> and tick Profile, Positions, Education,
+          Skills, Certifications, Languages and Projects. That is enough.
         </li>
-        <li>Click <strong>Request archive</strong>. LinkedIn emails a download link, usually within 10 minutes and at most a day.</li>
-        <li>Download the .zip and drop it here. Only the profile files are read; messages and connections are ignored.</li>
+        <li>
+          Click <strong>Request archive</strong>. LinkedIn emails a download link, usually within 10 minutes
+          and at most a day.
+        </li>
+        <li>
+          Download the .zip and drop it here. Only the profile files are read; messages and connections are
+          ignored.
+        </li>
       </ol>
     </details>
   );
@@ -74,8 +85,13 @@ export function SourcePicker({
       title: "Upload resume",
       text: "A PDF or Word file. Groq reads it into your profile; you review every field before anything is saved.",
       body: (
-        <Dropzone accept=".pdf,.docx" label="Drop your resume here or click to browse" hint="PDF or DOCX, up to 50 MB"
-          disabled={busy} onFile={(file) => upload.mutate({ file, source: "file" })} />
+        <Dropzone
+          accept=".pdf,.docx"
+          label="Drop your resume here or click to browse"
+          hint="PDF or DOCX, up to 50 MB"
+          disabled={busy}
+          onFile={(file) => upload.mutate({ file, source: "file" })}
+        />
       ),
     },
     {
@@ -85,11 +101,18 @@ export function SourcePicker({
       text: "Your LinkedIn data export (.zip). Works without an API key.",
       body: (
         <div className="space-y-3">
-          <Dropzone accept=".zip" label="Drop the LinkedIn .zip here or click to browse" hint="The archive LinkedIn emailed you"
-            disabled={busy} onFile={(file) => upload.mutate({ file, source: "linkedin" })} />
+          <Dropzone
+            accept=".zip"
+            label="Drop the LinkedIn .zip here or click to browse"
+            hint="The archive LinkedIn emailed you"
+            disabled={busy}
+            onFile={(file) => upload.mutate({ file, source: "linkedin" })}
+          />
           <label className="flex items-center gap-2 text-body">
             <Switch checked={enhance} onCheckedChange={setEnhance} /> Enhance with AI
-            <span className="text-caption text-muted-foreground">(bullets, skill categories, tech stacks)</span>
+            <span className="text-caption text-muted-foreground">
+              (bullets, skill categories, tech stacks)
+            </span>
           </label>
           <LinkedInHowTo />
         </div>
@@ -126,19 +149,41 @@ export function SourcePicker({
       {busy && (
         <p className="flex items-center gap-2 text-body text-muted-foreground" role="status">
           <Loader2 className="size-4 animate-spin" />
-          {source === "file" ? "Reading your resume with Groq. This takes 10–30 seconds…" : "Reading your LinkedIn export…"}
+          {source === "file"
+            ? "Reading your resume with Groq. This takes 10–30 seconds…"
+            : "Reading your LinkedIn export…"}
         </p>
       )}
     </div>
   );
 }
 
-function FileReview({ result, file, onContinue, onBack }: { result: ImportResult; file: File; onContinue: (next: ImportResult) => void; onBack: () => void }) {
-  const form = useForm<ProfileForm>({ resolver: zodResolver(profileSchema), mode: "onChange", defaultValues: toForm(result.draft) });
-  const pdfUrl = React.useMemo(() => (file.name.toLowerCase().endsWith(".pdf") ? URL.createObjectURL(file) : null), [file]);
-  React.useEffect(() => () => {
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-  }, [pdfUrl]);
+function FileReview({
+  result,
+  file,
+  onContinue,
+  onBack,
+}: {
+  result: ImportResult;
+  file: File;
+  onContinue: (next: ImportResult) => void;
+  onBack: () => void;
+}) {
+  const form = useForm<ProfileForm>({
+    resolver: zodResolver(profileSchema),
+    mode: "onChange",
+    defaultValues: toForm(result.draft),
+  });
+  const pdfUrl = React.useMemo(
+    () => (file.name.toLowerCase().endsWith(".pdf") ? URL.createObjectURL(file) : null),
+    [file],
+  );
+  React.useEffect(
+    () => () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    },
+    [pdfUrl],
+  );
 
   const review = useMutation({
     mutationFn: (data: ProfileForm) =>
@@ -154,7 +199,12 @@ function FileReview({ result, file, onContinue, onBack }: { result: ImportResult
     onError: (error: Error) => toast.error("Check the highlighted fields", { description: error.message }),
   });
 
-  const lowConfidence = result.low_confidence.map((path) => path.replace(":", " ").replace(/\b(\d+)\b/, (n) => `#${Number(n) + 1}`).replace(/_/g, " "));
+  const lowConfidence = result.low_confidence.map((path) =>
+    path
+      .replace(":", " ")
+      .replace(/\b(\d+)\b/, (n) => `#${Number(n) + 1}`)
+      .replace(/_/g, " "),
+  );
 
   return (
     <FormProvider {...form}>
@@ -164,13 +214,20 @@ function FileReview({ result, file, onContinue, onBack }: { result: ImportResult
             <iframe title="Original resume" src={pdfUrl} className="size-full" />
           ) : result.preview_html ? (
             <div className="h-full overflow-y-auto bg-muted/40 p-4">
-              <div className="doc-preview rounded-md bg-card p-6 shadow-card" dangerouslySetInnerHTML={{ __html: result.preview_html }} />
+              <div
+                className="doc-preview rounded-md bg-card p-6 shadow-card"
+                dangerouslySetInnerHTML={{ __html: result.preview_html }}
+              />
             </div>
           ) : (
             <p className="p-4 text-body text-muted-foreground">No preview available for this file.</p>
           )}
         </Card>
-        <form className="min-w-0 space-y-6" onSubmit={form.handleSubmit((data) => review.mutate(data))} noValidate>
+        <form
+          className="min-w-0 space-y-6"
+          onSubmit={form.handleSubmit((data) => review.mutate(data))}
+          noValidate
+        >
           {lowConfidence.length > 0 && (
             <div className="rounded-lg border border-warning/30 bg-warning-soft p-4 text-body" role="status">
               <p className="flex items-center gap-2 font-medium text-warning">
@@ -213,7 +270,9 @@ export function ImportFlow({
   onApplied: () => void;
   onStageChange?: (stage: "source" | "edit" | "merge") => void;
 }) {
-  const [state, setState] = React.useState<{ result: ImportResult; file: File; editing: boolean } | null>(null);
+  const [state, setState] = React.useState<{ result: ImportResult; file: File; editing: boolean } | null>(
+    null,
+  );
   React.useEffect(() => {
     onStageChange?.(!state ? "source" : state.editing ? "edit" : "merge");
   }, [state, onStageChange]);

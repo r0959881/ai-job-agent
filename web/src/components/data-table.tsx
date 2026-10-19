@@ -74,10 +74,7 @@ export function DataTable<T>({
   const colCount = table.getVisibleLeafColumns().length;
 
   return (
-    <div
-      ref={scroller}
-      className={cn("overflow-auto rounded-lg border", virtual && "max-h-[70vh]")}
-    >
+    <div ref={scroller} className={cn("overflow-auto rounded-lg border", virtual && "max-h-[70vh]")}>
       <table className="w-full caption-bottom text-body">
         <caption className="sr-only">{caption}</caption>
         <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
@@ -101,7 +98,13 @@ export function DataTable<T>({
                         className="inline-flex items-center gap-1 rounded hover:text-foreground"
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        {sorted === "asc" ? <ArrowUp className="size-3" /> : sorted === "desc" ? <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
+                        {sorted === "asc" ? (
+                          <ArrowUp className="size-3" />
+                        ) : sorted === "desc" ? (
+                          <ArrowDown className="size-3" />
+                        ) : (
+                          <ArrowUpDown className="size-3 opacity-40" />
+                        )}
                       </button>
                     ) : (
                       flexRender(header.column.columnDef.header, header.getContext())
@@ -133,7 +136,8 @@ export function DataTable<T>({
                 onRowClick?.(row.original);
               }}
               onKeyDown={(event) => {
-                if (onRowClick && event.key === "Enter" && event.target === event.currentTarget) onRowClick(row.original);
+                if (onRowClick && event.key === "Enter" && event.target === event.currentTarget)
+                  onRowClick(row.original);
               }}
             >
               {row.getVisibleCells().map((cell) => (
