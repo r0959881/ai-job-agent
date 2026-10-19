@@ -67,9 +67,10 @@ def test_groq_failures_are_counted_with_a_reason(monkeypatch):
 
 
 def test_gmail_reauth_is_skipped_without_opening_a_browser(monkeypatch, project_root):
+    from google.auth.exceptions import RefreshError
+
     import gmail_parser
     import main
-    from google.auth.exceptions import RefreshError
 
     install_fakes(monkeypatch, gmail=False)
 

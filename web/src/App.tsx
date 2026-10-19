@@ -1,9 +1,10 @@
 import * as React from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Outlet, RouterProvider, createBrowserRouter } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ConfirmProvider } from "@/components/confirm";
 import { AppShell } from "@/components/layout/AppShell";
 import { RunDialogProvider } from "@/components/layout/RunControl";
+import { RunNotifier } from "@/features/runs/RunNotifier";
 import { SkeletonRows } from "@/components/states";
 import { TooltipProvider } from "@/components/ui/overlays";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -24,32 +25,56 @@ function ThemedToaster() {
   return <Toaster theme={resolved} position="bottom-right" richColors closeButton duration={5000} />;
 }
 
+/** Providers that need the router (navigation from dialogs) live inside it. */
+function RootLayout() {
+  return (
+    <RunDialogProvider>
+      <RunNotifier />
+      <React.Suspense fallback={<SkeletonRows className="p-8" />}>
+        <Outlet />
+      </React.Suspense>
+    </RunDialogProvider>
+  );
+}
+
+const page = (Component: React.ComponentType) => (
+  <React.Suspense fallback={<SkeletonRows rows={8} />}>
+    <Component />
+  </React.Suspense>
+);
+
+export const routes = [
+  {
+    element: <RootLayout />,
+    children: [
+      { path: "/onboarding", element: page(OnboardingPage) },
+      {
+        element: <AppShell />,
+        children: [
+          { index: true, element: page(DashboardPage) },
+          { path: "profile", element: page(ProfilePage) },
+          { path: "jobs", element: page(JobsPage) },
+          { path: "jobs/:id", element: page(JobDetailPage) },
+          { path: "documents", element: page(DocumentsPage) },
+          { path: "runs", element: page(RunsPage) },
+          { path: "runs/:id", element: page(RunDetailPage) },
+          { path: "settings", element: page(SettingsPage) },
+          { path: "settings/:tab", element: page(SettingsPage) },
+          { path: "*", element: page(NotFoundPage) },
+        ],
+      },
+    ],
+  },
+];
+
+const router = createBrowserRouter(routes);
+
 export function App() {
   return (
     <ThemeProvider>
       <TooltipProvider delayDuration={300}>
         <ConfirmProvider>
-          <BrowserRouter>
-            <RunDialogProvider>
-              <React.Suspense fallback={<SkeletonRows className="p-8" />}>
-                <Routes>
-                  <Route path="/onboarding" element={<OnboardingPage />} />
-                  <Route element={<AppShell />}>
-                    <Route index element={<DashboardPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="jobs" element={<JobsPage />} />
-                    <Route path="jobs/:id" element={<JobDetailPage />} />
-                    <Route path="documents" element={<DocumentsPage />} />
-                    <Route path="runs" element={<RunsPage />} />
-                    <Route path="runs/:id" element={<RunDetailPage />} />
-                    <Route path="settings" element={<SettingsPage />} />
-                    <Route path="settings/:tab" element={<SettingsPage />} />
-                    <Route path="*" element={<NotFoundPage />} />
-                  </Route>
-                </Routes>
-              </React.Suspense>
-            </RunDialogProvider>
-          </BrowserRouter>
+          <RouterProvider router={router} />
           <ThemedToaster />
         </ConfirmProvider>
       </TooltipProvider>
