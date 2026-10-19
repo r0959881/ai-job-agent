@@ -98,10 +98,12 @@ export interface ImportResult {
   items: MergeItem[];
   warnings: string[];
   skills_pool: string[];
+  skill_suggestions: Record<string, string>;
   education_alternatives: Education[];
-  preview_html?: string;
+  preview_html?: string | null;
   low_confidence: string[];
   ai_used: boolean;
+  current_empty: boolean;
 }
 
 export interface SearchSettings {

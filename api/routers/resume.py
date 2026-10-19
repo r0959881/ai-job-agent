@@ -165,3 +165,25 @@ def commit_import(body: CommitRequest):
     except resume_store.ResumeConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     return {**resume_store.summary(), "etag": etag, "backup_id": backup_id}
+
+
+class ReviewRequest(BaseModel):
+    source: str = "resume_file"
+    draft: dict[str, Any]
+    skills_pool: list[str] = []
+    skill_suggestions: dict[str, str] = {}
+    warnings: list[str] = []
+    low_confidence: list[str] = []
+
+
+@router.post("/import/review")
+def review_import(body: ReviewRequest):
+    """Recompute the merge view after the user edited an imported draft (nothing is saved)."""
+    from api.importers.merge import build_import_result
+
+    try:
+        resume_store.validate(body.draft)
+    except resume_store.ResumeInvalid as exc:
+        raise _invalid(exc) from exc
+    extras = {"skills_pool": body.skills_pool, "skill_categories": body.skill_suggestions}
+    return build_import_result(body.source, body.draft, body.warnings, extras, low_confidence=body.low_confidence)

@@ -48,8 +48,31 @@ def _fake_get(url, params=None, timeout=None, **_kwargs):
     }]})
 
 
+FAKE_RESUME = {
+    "personal_info": {"full_name": "Demo Person", "headline": "Junior Data Analyst", "email": "demo@example.com",
+                      "phone": "+32 400 00 00 00", "location": "Gent, Belgium"},
+    "core_skills": {"languages_and_tools": ["SQL", "Python"], "bi_and_reporting": ["Power BI"]},
+    "experience": [{"company": "Demo Retail NV", "role": "Data Analyst Intern", "location": "Gent",
+                    "dates": "Feb 2026 - Jun 2026", "type": "Internship",
+                    "bullets": ["Built Power BI dashboards for store managers.", "Cleaned sales data with SQL."]}],
+    "projects": [{"title": "Sales Forecast", "tech_stack": "Python, Prophet", "highlights": ["Forecast weekly sales."]}],
+    "certifications": [{"name": "PL-300 Power BI Data Analyst", "issuer": "Microsoft", "year": "2026"}],
+    "education": {"degree": "Bachelor Business IT", "institution": "Demo University", "location": "Gent",
+                  "dates": "2023 - 2026", "coursework": ["Databases"]},
+    "languages": ["English: C1", "Dutch: B2"],
+    "low_confidence": ["experience.0.dates"],
+}
+
+
 class _Completions:
-    def create(self, **_kwargs):
+    def create(self, **kwargs):
+        prompt = kwargs.get("messages", [{}])[-1].get("content", "")
+        if "Extract this resume into JSON" in prompt:
+            import json
+
+            return self._reply(json.dumps(FAKE_RESUME))
+        if "clean up a LinkedIn profile export" in prompt:
+            return self._reply('{"experience": [], "projects": [], "skill_categories": {}}')
         time.sleep(float(os.environ.get("AI_JOB_AGENT_FAKE_GROQ_DELAY", "1.0")))
         content = ("SUMMARY: Data professional with hands-on SQL, Python and Power BI experience who turns raw data "
                    "into reliable reporting. Comfortable across ETL, modelling and stakeholder communication. "
@@ -58,6 +81,10 @@ class _Completions:
                    "- Wrote SQL to clean and shape operational data before reporting.\n"
                    "- Replaced a 12-week manual workflow with a single-click solution.\n"
                    "- Documented metric logic and data definitions for onboarding.")
+        return self._reply(content)
+
+    @staticmethod
+    def _reply(content):
         message = type("M", (), {"content": content})
         return type("R", (), {"choices": [type("C", (), {"message": message})]})
 
@@ -65,6 +92,7 @@ class _Completions:
 class FakeGroq:
     def __init__(self, api_key=None):
         self.chat = type("Chat", (), {"completions": _Completions()})()
+        self.models = type("Models", (), {"list": lambda self: type("L", (), {"data": [1, 2, 3]})()})()
 
 
 class _Exec:
@@ -114,5 +142,6 @@ def install():
     discovery.requests.get = _fake_get
     tailor.Groq = FakeGroq
     main.get_client = lambda: FakeGroq()
+    tailor.get_client = lambda: FakeGroq()
     gmail_parser.get_gmail_service = lambda interactive=True: FakeGmailService()
     return True
