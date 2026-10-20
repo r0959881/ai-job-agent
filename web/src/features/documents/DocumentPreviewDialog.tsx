@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DocumentDownload } from "@/features/documents/DocumentDownload";
 import { Download, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/confirm";
@@ -50,7 +51,9 @@ export function useDocumentActions() {
   const open = useMutation({
     mutationFn: (doc: DocumentItem) => api.post(`/api/documents/${doc.id}/open`),
     onSuccess: (_result, doc) =>
-      toast.success(`Opening ${doc.name}`, { description: "It opens in Word on this computer." }),
+      toast.success(`Downloaded ${doc.name}`, {
+        description: "Open it from your browser's downloads to edit it in Word.",
+      }),
     onError: (error: Error) => toast.error("Could not open the file", { description: error.message }),
   });
   const confirmDelete = async (doc: DocumentItem) => {
@@ -59,7 +62,7 @@ export function useDocumentActions() {
       description: (
         <>
           <p className="break-all font-mono text-caption">{doc.name}</p>
-          <p className="mt-2">The file is permanently removed from the output folder.</p>
+          <p className="mt-2">The file is permanently removed from your documents folder.</p>
         </>
       ),
       confirmLabel: "Delete file",
@@ -103,16 +106,16 @@ export function DocumentPreviewDialog({
               <DialogDescription className="break-all">{document.name}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-wrap gap-2">
-              <a className={buttonVariants({ size: "sm" })} href={`/api/documents/${document.id}/download`}>
+              <DocumentDownload className={buttonVariants({ size: "sm" })} id={document.id}>
                 <Download /> Download
-              </a>
+              </DocumentDownload>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => actions.open.mutate(document)}
                 loading={actions.open.isPending}
               >
-                <ExternalLink /> Open in Word
+                <ExternalLink /> Open
               </Button>
               {canRegenerate && (
                 <Button

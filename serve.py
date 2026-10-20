@@ -1,4 +1,6 @@
-"""Start the local web UI: build the frontend if needed, serve on 127.0.0.1, open the browser.
+"""Run the web app locally: build the frontend if needed, serve on 127.0.0.1, open the browser.
+
+On a server the app runs under Passenger instead (passenger_wsgi.py, see DEPLOYMENT.md).
 
     python serve.py              # build if needed, serve, open the browser
     python serve.py --dev        # API only, for `npm run dev` on http://127.0.0.1:5173
@@ -92,12 +94,17 @@ def main(argv=None):
 
     port = args.port if args.dev else pick_port(args.port)
     os.environ["AI_JOB_AGENT_PORT"] = str(port)
+    # This server only listens on 127.0.0.1, so the sign-in without Google or LinkedIn is safe here.
+    # Set AI_JOB_AGENT_DEV_LOGIN=0 to try the real providers locally.
+    os.environ.setdefault("AI_JOB_AGENT_DEV_LOGIN", "1")
+    # Sign in automatically as the local account, which uses this project's files, keys and jobs.
+    os.environ.setdefault("AI_JOB_AGENT_LOCAL", "1")
     if args.dev:
         os.environ["AI_JOB_AGENT_UI_ORIGIN"] = DEV_ORIGINS[0]
 
     from api.app import create_app
 
-    app = create_app(dev_origins=DEV_ORIGINS if args.dev else ())
+    app = create_app()
     url = DEV_ORIGINS[0] if args.dev else f"http://127.0.0.1:{port}"
     print(f"🌐 AI Job Agent UI: {url}  (Ctrl+C to stop)")
     if not args.no_browser:

@@ -2,6 +2,7 @@ import os
 import yaml
 from dotenv import load_dotenv
 from groq import Groq
+import user_scope
 from agent_log import log
 from config import DB_PATH, ENV_PATH, load_resume_file
 from database import connect, record_document
@@ -20,17 +21,12 @@ class GroqConfigError(Exception):
 
 def check_groq_key():
     """Return the key, or raise GroqConfigError with the CLI's friendly message."""
-    groq_api_key = os.getenv("GROQ_API_KEY")
+    groq_api_key = user_scope.secret("GROQ_API_KEY")
+    where = "in Settings → Integrations" if user_scope.current() else "as GROQ_API_KEY in .env"
     if not groq_api_key:
-        raise GroqConfigError(
-            "❌ GROQ_API_KEY is not configured. "
-            "Copy .env.example to .env and add your Groq API key."
-        )
+        raise GroqConfigError(f"❌ No Groq API key is set. Add your free Groq key {where}.")
     if not groq_api_key.startswith("gsk_"):
-        raise GroqConfigError(
-            "❌ GROQ_API_KEY is invalid or still a placeholder. "
-            "Create a new Groq key and set it as GROQ_API_KEY in .env."
-        )
+        raise GroqConfigError(f"❌ The Groq API key is invalid (it should start with gsk_). Set a new key {where}.")
     return groq_api_key
 
 
@@ -86,12 +82,17 @@ def generate_tailored_content(job_id, client=None):
     if not job:
         log("❌ Job not found in database!", level="error")
         return None
+    title, company, _location, _url = job
+    return tailored_content_for({"title": title, "company": company}, client=client)
 
-    title, company, location, url = job
+
+def tailored_content_for(job, client=None, resume=None):
+    """The same as generate_tailored_content for a job given as a dict (title, company, role_family)."""
+    title, company = job.get("title") or "", job.get("company") or ""
     log(f"🤖 Tailoring CV for: {title} at {company}...")
-    role_family = classify_target_role(title)
+    role_family = job.get("role_family") or classify_target_role(title)
 
-    resume = load_master_resume()
+    resume = resume if resume is not None else load_master_resume()
     if not resume:
         return None
 

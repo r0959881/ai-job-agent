@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Plus, RotateCcw, Save, Trash2 } from "lucide
 import * as React from "react";
 import { toast } from "sonner";
 import { Field, TagInput } from "@/components/common";
+import { MultiSelect } from "@/components/multi-select";
 import { useConfirm } from "@/components/confirm";
 import { ErrorState, SkeletonForm } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Switch } from "@/components/ui/controls";
 import { Card, Input, Textarea } from "@/components/ui/primitives";
 import { SectionCard } from "@/features/profile/sections";
 import { api } from "@/lib/api";
-import { keys } from "@/lib/queries";
+import { keys, useSearchCatalog } from "@/lib/queries";
 import type { SearchSettings, SettingsResponse } from "@/lib/types";
 
 interface RoleRow {
@@ -112,6 +113,13 @@ export function SearchSettingsForm() {
     queryKey: keys.settings,
     queryFn: () => api.get<SettingsResponse>("/api/settings/search"),
   });
+  const catalog = useSearchCatalog();
+  const regionLabels = new Map(
+    (catalog.data?.regions ?? []).map((region) => [region.id, `${region.flag} ${region.label}`]),
+  );
+  const languageLabels = new Map(
+    (catalog.data?.languages ?? []).map((language) => [language.id, language.label]),
+  );
   const [draft, setDraft] = React.useState<SearchSettings | null>(null);
   const [roles, setRoles] = React.useState<RoleRow[]>([]);
   const [baseline, setBaseline] = React.useState("");
@@ -131,6 +139,7 @@ export function SearchSettingsForm() {
     onSuccess: (result) => {
       queryClient.setQueryData(keys.settings, result);
       queryClient.invalidateQueries({ queryKey: keys.integrations });
+      queryClient.invalidateQueries({ queryKey: keys.catalog });
       load(result.settings);
       toast.success("Search settings saved", { description: "The next run uses them." });
     },
@@ -290,12 +299,50 @@ export function SearchSettingsForm() {
         </Field>
       </SectionCard>
 
-      <SectionCard id="locations" title="Locations">
+      <SectionCard
+        id="locations"
+        title="Regions and locations"
+        description="The Start-run dialog asks which regions to search. When you pick regions there, only jobs in those regions are kept."
+      >
         <Field
-          label="Allowed locations"
+          label="Default regions"
+          htmlFor="regions"
+          description="Preselected in the Start-run dialog, and searched by runs started from the command line."
+          error={
+            !draft.regions.length && !draft.allowed_locations.length
+              ? "Pick at least one region or add an allowed place"
+              : undefined
+          }
+        >
+          <MultiSelect
+            id="regions"
+            aria-label="Default regions"
+            value={draft.regions}
+            onChange={(v) => set("regions", v)}
+            options={(catalog.data?.regions ?? []).map((region) => region.id)}
+            formatOption={(id) => regionLabels.get(id) ?? id}
+            placeholder="Choose countries…"
+          />
+        </Field>
+        <Field
+          label="Default job languages"
+          htmlFor="languages"
+          description="Preselected in the Start-run dialog. Jobs must require only these languages, or be written in one of them. Leave empty to keep every language."
+        >
+          <MultiSelect
+            id="languages"
+            aria-label="Default job languages"
+            value={draft.languages}
+            onChange={(v) => set("languages", v)}
+            options={(catalog.data?.languages ?? []).map((language) => language.id)}
+            formatOption={(id) => languageLabels.get(id) ?? id}
+            placeholder="Any language"
+          />
+        </Field>
+        <Field
+          label="Extra allowed places"
           htmlFor="allowed"
-          description="A job must mention one of these places."
-          error={!draft.allowed_locations.length ? "Add at least one location" : undefined}
+          description="Also accepted for runs that use the default regions, for example a town the region list does not know."
         >
           <TagInput
             id="allowed"
@@ -316,7 +363,11 @@ export function SearchSettingsForm() {
         </Field>
       </SectionCard>
 
-      <SectionCard id="sources" title="Sources and time window">
+      <SectionCard
+        id="sources"
+        title="Sources and time window"
+        description="Sources switched on here are preselected when you start a run."
+      >
         <div className="grid gap-4 md:grid-cols-3">
           <Field
             label="Time window (hours)"
@@ -332,53 +383,69 @@ export function SearchSettingsForm() {
               onChange={(e) => set("time_window_hours", Number(e.target.value) || 1)}
             />
           </Field>
-          <Field label="Adzuna country code" htmlFor="az-country">
+          <Field
+            label="Results per search"
+            htmlFor="per-search"
+            description="Per site, region and role. Higher means slower runs."
+          >
             <Input
-              id="az-country"
-              maxLength={2}
-              value={draft.adzuna.country}
-              onChange={(e) => set("adzuna", { ...draft.adzuna, country: e.target.value.toLowerCase() })}
+              id="per-search"
+              type="number"
+              min={5}
+              max={100}
+              className="tabular"
+              value={draft.scraping.results_per_search}
+              onChange={(e) =>
+                set("scraping", { ...draft.scraping, results_per_search: Number(e.target.value) || 25 })
+              }
             />
           </Field>
-          <Field label="Adzuna location" htmlFor="az-location">
-            <Input
-              id="az-location"
-              value={draft.adzuna.location}
-              onChange={(e) => set("adzuna", { ...draft.adzuna, location: e.target.value })}
+          <label className="flex items-start gap-3 self-end rounded-md border p-3 text-body">
+            <Switch
+              checked={draft.scraping.linkedin_descriptions}
+              onCheckedChange={(on) => set("scraping", { ...draft.scraping, linkedin_descriptions: on })}
             />
-          </Field>
+            <span>
+              <span className="block font-medium">Full LinkedIn descriptions</span>
+              <span className="block text-caption text-muted-foreground">
+                Needed to spot entry-level roles. About one second per job.
+              </span>
+            </span>
+          </label>
         </div>
-        <div className="flex flex-wrap gap-6">
-          {(["adzuna", "arbeitnow", "gmail"] as const).map((source) => (
-            <label key={source} className="flex items-center gap-2 text-body">
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(catalog.data?.sources ?? []).map((source) => (
+            <label key={source.key} className="flex items-center gap-2 text-body">
               <Switch
-                checked={draft.sources[source]}
-                onCheckedChange={(on) => set("sources", { ...draft.sources, [source]: on })}
+                checked={draft.sources[source.key] ?? source.default}
+                onCheckedChange={(on) => set("sources", { ...draft.sources, [source.key]: on })}
               />
-              {source === "gmail" ? "Gmail alerts" : source[0].toUpperCase() + source.slice(1)} on by default
+              {source.label}
             </label>
           ))}
         </div>
-        <div className="grid gap-4 md:grid-cols-[1fr_10rem]">
-          <Field label="Gmail alert senders" htmlFor="senders">
-            <TagInput
-              id="senders"
-              value={draft.gmail.senders}
-              onChange={(senders) => set("gmail", { ...draft.gmail, senders })}
-            />
-          </Field>
-          <Field label="Gmail look-back (days)" htmlFor="lookback">
-            <Input
-              id="lookback"
-              type="number"
-              min={1}
-              max={30}
-              className="tabular"
-              value={draft.gmail.lookback_days}
-              onChange={(e) => set("gmail", { ...draft.gmail, lookback_days: Number(e.target.value) || 1 })}
-            />
-          </Field>
-        </div>
+        <Field
+          label="Companies to follow"
+          htmlFor="company-boards"
+          description="Their career pages are searched on every run. Write ats:company, as in the page's address: greenhouse:collibra (boards.greenhouse.io/collibra), lever:spotify, ashby:ramp, recruitee:bunq or smartrecruiters:BoschGroup."
+        >
+          <TagInput
+            id="company-boards"
+            value={draft.company_boards}
+            onChange={(v) => set("company_boards", v)}
+          />
+        </Field>
+        <Field
+          label="Proxies (optional)"
+          htmlFor="proxies"
+          description="Only if LinkedIn or Indeed start blocking you, e.g. user:pass@host:port. Leave empty to connect directly."
+        >
+          <TagInput
+            id="proxies"
+            value={draft.scraping.proxies}
+            onChange={(proxies) => set("scraping", { ...draft.scraping, proxies })}
+          />
+        </Field>
       </SectionCard>
 
       <SectionCard

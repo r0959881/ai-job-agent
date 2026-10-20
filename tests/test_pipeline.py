@@ -21,7 +21,8 @@ def test_full_run_emits_every_step(monkeypatch, capsys):
     summary = main.run_agent(on_event=on_event, interactive=False)
 
     finished = {(step, status) for step, status, *_ in events if status not in {"log", "progress"}}
-    for step in ("init_db", "adzuna", "arbeitnow", "gmail", "filter", "tailoring", "report"):
+    # The default regions (Belgium, Netherlands) have VDAB as their key-less job board.
+    for step in ("init_db", "scrape", "boards", "adzuna", "gmail", "filter", "tailoring", "report"):
         assert (step, "succeeded") in finished, step
     assert summary["tailored"] == groq.completions.calls == summary["eligible"] > 0
     assert summary["failed"] == 0
@@ -107,6 +108,7 @@ def test_options_limit_sources_window_and_dry_run(monkeypatch):
                    options={"sources": ["arbeitnow"], "time_window_hours": 1, "dry_run": True})
     statuses = {(e[0], e[1]) for e in events}
     assert ("adzuna", "skipped") in statuses and ("gmail", "skipped") in statuses
+    assert ("scrape", "skipped") in statuses
     assert ("tailoring", "skipped") in statuses
     assert groq.completions.calls == 0
 
@@ -125,7 +127,8 @@ def test_settings_edits_apply_to_the_next_run(monkeypatch):
     import main
 
     install_fakes(monkeypatch)
-    agent_settings.save({"search_queries": {"Data Engineer": ["data engineer"]}})
+    agent_settings.save({"regions": ["BE"], "target_roles": {"Data Engineer": ["data engineer"]},
+                         "search_queries": {"Data Engineer": ["data engineer"]}})
     events, on_event = collect()
     main.run_agent(on_event=on_event, interactive=False, options={"dry_run": True})
     progress = [e for e in events if e[0] == "adzuna" and e[1] == "progress"]

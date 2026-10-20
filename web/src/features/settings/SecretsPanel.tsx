@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/confirm";
 import { ErrorState, SkeletonForm } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/controls";
 import { Badge, Card, Input } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/queries";
-import type { SecretField, SettingsResponse } from "@/lib/types";
+import { useSession } from "@/lib/session";
+import type { SecretField } from "@/lib/types";
 
 const GROUPS: { id: string; title: string; description: string; help?: { href: string; label: string } }[] = [
   {
@@ -20,20 +20,14 @@ const GROUPS: { id: string; title: string; description: string; help?: { href: s
   },
   {
     id: "adzuna",
-    title: "Adzuna",
-    description: "Searches Belgian job listings by keyword.",
+    title: "Adzuna (optional)",
+    description: "A job search API for 19 countries. Free keys; runs skip Adzuna without them.",
     help: { href: "https://developer.adzuna.com/signup", label: "Get Adzuna API keys" },
-  },
-  {
-    id: "smtp",
-    title: "Email alerts (Gmail SMTP)",
-    description:
-      "Optional: emails you when a run tailors a CV. Needs a Gmail app password, not your normal password.",
-    help: { href: "https://myaccount.google.com/apppasswords", label: "Create an app password" },
   },
 ];
 
 function SecretRow({ field }: { field: SecretField }) {
+  const projectFiles = Boolean(useSession().data?.project_files);
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [editing, setEditing] = React.useState(false);
@@ -47,7 +41,9 @@ function SecretRow({ field }: { field: SecretField }) {
       queryClient.invalidateQueries({ queryKey: keys.integrations });
       queryClient.invalidateQueries({ queryKey: keys.stats });
       toast.success(next ? `${field.label} saved` : `${field.label} removed`, {
-        description: "Stored in .env on this computer.",
+        description: projectFiles
+          ? "Saved in the project's .env file."
+          : "Saved, encrypted, in your account.",
       });
       setEditing(false);
       setValue("");
@@ -117,7 +113,7 @@ function SecretRow({ field }: { field: SecretField }) {
                 if (
                   await confirm({
                     title: `Remove ${field.label}?`,
-                    description: "It is deleted from .env.",
+                    description: "It is deleted from your account.",
                     confirmLabel: "Remove",
                     destructive: true,
                   })
@@ -143,7 +139,7 @@ function TestButton({ name }: { name: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" variant="secondary" onClick={() => test.mutate()} loading={test.isPending}>
-        <PlugZap /> {name === "smtp" ? "Send test email" : "Test connection"}
+        <PlugZap /> Test connection
       </Button>
       {test.data && (
         <span className={test.data.ok ? "text-body text-success" : "text-body text-danger"} role="status">
@@ -154,37 +150,8 @@ function TestButton({ name }: { name: string }) {
   );
 }
 
-function SmtpToggle() {
-  const queryClient = useQueryClient();
-  const settings = useQuery({
-    queryKey: keys.settings,
-    queryFn: () => api.get<SettingsResponse>("/api/settings/search"),
-  });
-  const save = useMutation({
-    mutationFn: (enabled: boolean) =>
-      api.put<SettingsResponse>("/api/settings/search", {
-        settings: { ...settings.data!.settings, alerts: { smtp_enabled: enabled } },
-      }),
-    onSuccess: (result, enabled) => {
-      queryClient.setQueryData(keys.settings, result);
-      queryClient.invalidateQueries({ queryKey: keys.integrations });
-      toast.success(enabled ? "Email alerts turned on" : "Email alerts turned off");
-    },
-    onError: (error: Error) => toast.error("The setting was not saved", { description: error.message }),
-  });
-  return (
-    <label className="flex items-center gap-3 text-body">
-      <Switch
-        checked={Boolean(settings.data?.settings.alerts.smtp_enabled)}
-        disabled={!settings.data || save.isPending}
-        onCheckedChange={(enabled) => save.mutate(enabled)}
-      />
-      Send email alerts
-    </label>
-  );
-}
-
-export function SecretsPanel({ groups = ["groq", "adzuna", "smtp"] }: { groups?: string[] }) {
+export function SecretsPanel({ groups = ["groq", "adzuna"] }: { groups?: string[] }) {
+  const projectFiles = Boolean(useSession().data?.project_files);
   const secrets = useQuery({
     queryKey: keys.secrets,
     queryFn: () => api.get<SecretField[]>("/api/settings/secrets"),
@@ -211,7 +178,6 @@ export function SecretsPanel({ groups = ["groq", "adzuna", "smtp"] }: { groups?:
               )}
             </p>
           </div>
-          {group.id === "smtp" && <SmtpToggle />}
           {secrets.data
             .filter((field) => field.group === group.id)
             .map((field) => (
@@ -221,8 +187,9 @@ export function SecretsPanel({ groups = ["groq", "adzuna", "smtp"] }: { groups?:
         </Card>
       ))}
       <p className="text-caption text-muted-foreground">
-        Keys are saved in <span className="font-mono">.env</span> next to the app and never shown in full
-        again.
+        {projectFiles
+          ? "This account uses the project's own files: keys are read from and saved to .env, the same file the command line uses. They are never shown in full again."
+          : "Keys are encrypted in your account on the server and never shown in full again. Only your own runs use them."}
       </p>
     </div>
   );

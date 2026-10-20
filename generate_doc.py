@@ -11,6 +11,15 @@ from config import OUTPUT_DIR, PROJECT_ROOT, file_name_slug, load_resume_file, l
 def cv_filename_prefix(full_name=None):
     return f"{file_name_slug(full_name)}_CV_"
 
+
+def cv_file_stem(full_name, company_name, job_title):
+    """'Ammar_Haider_CV_Acme_Data Engineer', kept short enough for Windows paths."""
+    clean_company = "".join(c for c in str(company_name) if c.isalnum() or c in (' ', '_')).strip()
+    clean_title = "".join(c for c in str(job_title) if c.isalnum() or c in (' ', '_')).strip()
+    filename_prefix = cv_filename_prefix(full_name)
+    max_stem_length = 180 - len(filename_prefix)
+    return f"{filename_prefix}{clean_company}_{clean_title}"[:max_stem_length].rstrip(" ._")
+
 def create_tailored_cv_docx(company_name, job_title, tailored_summary, tailored_bullets, role_family=None,
                             data=None, output_path=None):
     """Generates a professional .docx CV formatted for ATS parsers.
@@ -216,14 +225,9 @@ def create_tailored_cv_docx(company_name, job_title, tailored_summary, tailored_
         doc.save(output_path)
         return str(output_path)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    clean_company = "".join(c for c in str(company_name) if c.isalnum() or c in (' ', '_')).strip()
-    clean_title = "".join(c for c in str(job_title) if c.isalnum() or c in (' ', '_')).strip()
     # Keep generated paths below Windows' maximum path length.
-    filename_prefix = cv_filename_prefix(info.get("full_name"))
-    max_stem_length = 180 - len(filename_prefix)
-    filename_stem = f"{filename_prefix}{clean_company}_{clean_title}"[:max_stem_length]
-    filename_stem = filename_stem.rstrip(" ._")
-    
+    filename_stem = cv_file_stem(info.get("full_name"), company_name, job_title)
+
     file_path = f"output/{filename_stem}.docx"
     doc.save(long_path(PROJECT_ROOT / file_path))
     log(f"📄 Word Document created successfully: {file_path}")

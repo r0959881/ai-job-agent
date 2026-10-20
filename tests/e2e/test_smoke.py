@@ -1,8 +1,9 @@
-"""End-to-end smoke test: edit profile -> mocked run -> open a job -> mark it applied.
+"""End-to-end smoke test: sign in -> edit profile -> mocked run -> open a job -> mark it applied.
 
 Runs the real server (built web/dist) against a throwaway data root with
-AI_JOB_AGENT_FAKE_SOURCES=1, drives it with Playwright, and runs an axe
-accessibility scan on every main page in light and dark mode.
+AI_JOB_AGENT_FAKE_SOURCES=1 and the developer sign-in, drives it with Playwright,
+and runs an axe accessibility scan on every main page in light and dark mode.
+Headless Chromium cannot answer the folder picker, so files go to browser storage.
 
     python -m pytest tests/e2e -m e2e        (or: cd web && npm run e2e)
 """
@@ -18,7 +19,6 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-import yaml
 
 CODE_ROOT = Path(__file__).resolve().parents[2]
 DIST = CODE_ROOT / "web" / "dist" / "index.html"
@@ -39,11 +39,11 @@ def server():
     if not DIST.exists():
         pytest.skip("Build the web app first: cd web && npm run build")
     root = Path(tempfile.mkdtemp(prefix="ai_job_agent_e2e_"))
-    shutil.copy(CODE_ROOT / "resume_data.yaml", root / "resume_data.yaml")
     port = free_port()
     env = {**os.environ, "AI_JOB_AGENT_ROOT": str(root), "AI_JOB_AGENT_FAKE_SOURCES": "1",
-           "AI_JOB_AGENT_FAKE_GROQ_DELAY": "0.2"}
-    for key in ("GROQ_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY"):
+           "AI_JOB_AGENT_FAKE_GROQ_DELAY": "0.2", "AI_JOB_AGENT_DEV_LOGIN": "1",
+           "AI_JOB_AGENT_LOCAL": "0"}
+    for key in ("GROQ_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "DATABASE_URL", "PUBLIC_URL", "SECRET_KEY"):
         env.pop(key, None)
     process = subprocess.Popen([sys.executable, "serve.py", "--no-browser", "--port", str(port)], cwd=CODE_ROOT,
                                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -72,6 +72,21 @@ def browser():
         instance.close()
 
 
+def sign_in(context, base, email, seed_resume=True):
+    page = context.new_page()
+    page.goto(f"{base}/settings")
+    page.wait_for_url("**/login**")
+    page.get_by_label("Developer sign-in (local only)").fill(email)
+    page.get_by_role("button", name="Sign in without a provider").click()
+    page.wait_for_url(lambda url: "/login" not in url)
+    if seed_resume:
+        csrf = page.request.get(f"{base}/api/session").json()["csrf"]
+        text = (CODE_ROOT / "resume_data.yaml").read_text(encoding="utf-8")
+        response = page.request.put(f"{base}/api/resume/raw", data={"text": text}, headers={"X-CSRF-Token": csrf})
+        assert response.ok, response.text()
+    return page
+
+
 def axe_violations(page):
     page.add_script_tag(path=str(AXE))
     result = page.evaluate(
@@ -84,40 +99,60 @@ def axe_violations(page):
     return result
 
 
-def test_profile_run_job_applied(server, browser):
-    base, root = server
-    page = browser.new_page(viewport={"width": 1280, "height": 900})
+def test_sign_in_profile_run_job_applied(server, browser):
+    base, _root = server
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = sign_in(context, base, "e2e@example.com")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
 
-    # 1. Edit the profile
+    # 1. Edit the profile (saved in the server database)
     page.goto(f"{base}/profile")
     page.get_by_label("Headline").fill("Data Engineer (e2e)")
     page.get_by_role("button", name="Save", exact=True).click()
     page.get_by_text("Profile saved").wait_for()
-    assert yaml.safe_load((root / "resume_data.yaml").read_text(encoding="utf-8"))["personal_info"]["headline"] == "Data Engineer (e2e)"
+    assert page.request.get(f"{base}/api/resume").json()["data"]["personal_info"]["headline"] == "Data Engineer (e2e)"
 
-    # 2. Start a mocked run and wait for it to finish
+    # 2. Start a mocked run, driven by this tab, and wait for it to finish
+    page.goto(f"{base}/")
     page.get_by_role("button", name="Run agent").first.click()
     dialog = page.get_by_role("dialog")
+    dialog.get_by_role("button", name="Belgium").wait_for()
+    dialog.get_by_role("button", name="Next").click()
+    dialog.get_by_text("Which roles should it search").wait_for()
+    dialog.get_by_role("button", name="Next").click()
     dialog.get_by_label("Max CVs to tailor").fill("2")
     dialog.get_by_role("button", name="Start run").click()
     page.wait_for_url("**/runs/*")
-    page.get_by_text("Documents from this run").wait_for(timeout=60_000)
+    page.get_by_text("Documents from this run").wait_for(timeout=90_000)
     playwright.expect(page.get_by_text("Succeeded").first).to_be_visible()
 
-    # 3. Open a job that is ready to apply and mark it applied
+    # 3. The jobs the run found are marked as just added, and the "Added" filters find them
+    for added in ("run", "24h", "1h"):
+        page.goto(f"{base}/jobs?sort=discovered&added={added}")
+        page.get_by_role("table").wait_for()
+        assert page.get_by_role("row").count() > 1, added
+    playwright.expect(page.get_by_role("columnheader", name="Added")).to_be_visible()
+    playwright.expect(page.get_by_text("New", exact=True).first).to_be_visible()
+
+    # 4. Open a job that is ready to apply and mark it applied
     page.goto(f"{base}/jobs?quick=ready")
     page.get_by_role("table").wait_for()
     page.get_by_role("row").nth(1).click()
     page.wait_for_url("**/jobs/*")
-    job_id = page.url.rsplit("/", 1)[-1]
-    page.get_by_role("button", name="I applied manually").click()
+    page.get_by_role("button", name="I applied").click()
     page.get_by_text("Marked as applied").wait_for()
-    with urllib.request.urlopen(f"{base}/api/jobs/{job_id}") as response:
-        job = json.load(response)
-    assert job["application_status"] == "applied" and job["applied_at"]
+
+    # 5. The tailored CV is on this device and previews through the server
+    page.goto(f"{base}/documents")
+    page.get_by_role("button", name="Preview").first.click()
+    page.get_by_role("dialog").get_by_text("PROFESSIONAL SUMMARY").wait_for(timeout=20_000)
     assert not errors, errors
+
+    # 6. Jobs stay on the device: the server has no job endpoint, and another user sees nothing
+    other = sign_in(browser.new_context(viewport={"width": 1280, "height": 900}), base, "other@example.com")
+    other.goto(f"{base}/jobs")
+    other.get_by_text("No jobs yet").wait_for()
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -125,13 +160,16 @@ def test_main_pages_have_no_serious_accessibility_violations(server, browser, sc
     if not AXE.exists():
         pytest.skip("axe-core is not installed (cd web && npm install)")
     base, _root = server
-    page = browser.new_page(viewport={"width": 1280, "height": 900}, color_scheme=scheme)
-    with urllib.request.urlopen(f"{base}/api/jobs?page_size=1") as response:
-        first_job = json.load(response)["items"]
-    paths = ["/", "/profile", "/jobs", "/documents", "/runs", "/settings/search", "/settings/integrations", "/onboarding"]
-    if first_job:
-        paths.append(f"/jobs/{first_job[0]['id']}")
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, color_scheme=scheme)
+    login = context.new_page()
+    login.goto(f"{base}/login")
+    login.wait_for_load_state("networkidle")
     problems = {}
+    if violations := axe_violations(login):
+        problems["/login"] = violations
+    page = sign_in(context, base, f"a11y-{scheme}@example.com")
+    paths = ["/", "/profile", "/jobs", "/documents", "/runs", "/settings/search", "/settings/integrations",
+             "/settings/storage", "/settings/account", "/onboarding"]
     for path in paths:
         page.goto(base + path)
         page.wait_for_load_state("networkidle")

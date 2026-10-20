@@ -1,101 +1,91 @@
-"""FastAPI application factory. Start it with `python serve.py`."""
-import contextlib
+"""FastAPI application factory.
+
+Locally: `python serve.py`. On cPanel: passenger_wsgi.py wraps create_app() for Passenger.
+"""
 import importlib
 import logging
-import threading
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
 
-import agent_settings
-from api.paths import UnsafePath
-from api.security import LocalOnlyMiddleware, get_ui_token
-from config import DB_PATH, RESUME_PATH, SETTINGS_PATH, WEB_DIST
-from database import init_db
+from api import server_config, store
+from api.auth import AuthMiddleware, session_info
+from config import WEB_DIST
 
 logger = logging.getLogger("ai_job_agent.api")
-VERSION = "1.0.0"
+VERSION = "2.0.0"
+SESSION_DAYS = 30
 
-# Routers are added phase by phase; each module exposes `router`.
 ROUTER_MODULES = [
+    "api.auth",
+    "api.routers.account",
     "api.routers.resume",
     "api.routers.settings",
     "api.routers.integrations",
-    "api.routers.runs",
-    "api.routers.jobs",
+    "api.routers.search",
     "api.routers.documents",
-    "api.routers.stats",
-    "api.routers.data",
+    "api.routers.local",
+]
+
+SECURITY_HEADERS = [
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"referrer-policy", b"same-origin"),
+    (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
 ]
 
 
-def _startup():
-    init_db(quiet=True)
-    if not SETTINGS_PATH.exists():
-        from generate_cover_letter import ROLE_LETTERS
+class SecurityHeaders:
+    def __init__(self, app):
+        self.app = app
 
-        agent_settings.seed(cover_letters=ROLE_LETTERS)
-    from api.services.runs import mark_interrupted_runs
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
 
-    mark_interrupted_runs()
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                names = {name for name, _ in message.get("headers", [])}
+                message.setdefault("headers", [])
+                message["headers"] += [header for header in SECURITY_HEADERS if header[0] not in names]
+            await send(message)
 
-    def backfill():
-        try:
-            from api.services.documents import backfill_documents
-
-            logger.info("Document backfill: %s", backfill_documents())
-        except Exception:  # Backfill is best-effort and must not stop the server.
-            logger.exception("Document backfill failed")
-
-    threading.Thread(target=backfill, name="document-backfill", daemon=True).start()
+        await self.app(scope, receive, send_with_headers)
 
 
-def create_app(dev_origins=(), run_startup=True, run_manager=None):
-    @contextlib.asynccontextmanager
-    async def lifespan(_app):
-        if run_startup:
-            _startup()
-        yield
-
-    app = FastAPI(title="AI Job Agent", version=VERSION, docs_url="/api/docs",
-                  openapi_url="/api/openapi.json", lifespan=lifespan)
-    app.add_middleware(LocalOnlyMiddleware, token=get_ui_token(), extra_origins=dev_origins)
-    from api.services.runs import RunManager
-
-    app.state.runs = run_manager or RunManager()
+def create_app():
+    app = FastAPI(title="AI Job Agent", version=VERSION, docs_url=None, redoc_url=None, openapi_url=None)
+    # Added inner to outer: the session must be decoded before AuthMiddleware reads it.
+    app.add_middleware(AuthMiddleware)
+    app.add_middleware(SessionMiddleware, secret_key=server_config.secret_key(), session_cookie="aja_session",
+                       max_age=SESSION_DAYS * 24 * 3600, same_site="lax", https_only=server_config.cookie_secure())
+    app.add_middleware(SecurityHeaders)
+    store.init_schema()
     from api import dev_fakes
 
     app.state.fake_sources = dev_fakes.install()
     if app.state.fake_sources:
-        logger.warning("AI_JOB_AGENT_FAKE_SOURCES=1: using offline fake job sources, Groq and Gmail.")
-
-    @app.exception_handler(UnsafePath)
-    async def unsafe_path(_request: Request, error: UnsafePath):
-        return JSONResponse({"detail": str(error)}, status_code=403)
+        logger.warning("AI_JOB_AGENT_FAKE_SOURCES=1: using offline fake job sources and Groq.")
 
     @app.get("/api/health")
     def health():
-        return {
-            "status": "ok",
-            "version": VERSION,
-            "database": DB_PATH.exists(),
-            "resume": RESUME_PATH.exists(),
-            "fake_sources": app.state.fake_sources,
-        }
+        try:
+            store.get_user(0)
+            database = True
+        except Exception:
+            logger.exception("Database check failed")
+            database = False
+        return {"status": "ok" if database else "degraded", "version": VERSION, "database": database,
+                "fake_sources": app.state.fake_sources}
 
     @app.get("/api/session")
-    def session():
-        """The web app reads its write token here. Other origins cannot read this response."""
-        return {"token": get_ui_token()}
+    def session(request: Request):
+        """The signed-in user, the CSRF token for write requests and the sign-in options."""
+        return session_info(request)
 
     for module_name in ROUTER_MODULES:
-        try:
-            module = importlib.import_module(module_name)
-        except ModuleNotFoundError as error:
-            if error.name == module_name:
-                continue
-            raise
-        app.include_router(module.router)
+        app.include_router(importlib.import_module(module_name).router)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def api_not_found(rest: str):

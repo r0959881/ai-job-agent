@@ -1,0 +1,9 @@
+# Extras for the single-user command line (python run_agent.py) on your own computer.
+# Not needed on the server.
+-r requirements.txt
+# Gmail job-alert emails (gmail_parser.py)
+google-api-python-client
+google-auth
+google-auth-oauthlib
+# Browser auto-fill (apply.py)
+playwright

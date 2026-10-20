@@ -1,3 +1,4 @@
+# What the web app needs, on the server (cPanel) and locally. Python 3.11 or newer.
 groq
 python-dotenv
 PyYAML
@@ -5,14 +6,21 @@ requests
 python-docx
 openpyxl
 beautifulsoup4
-google-api-python-client
-google-auth
-google-auth-oauthlib
-playwright
-# Web UI
-fastapi>=0.149,<1
-uvicorn[standard]>=0.54,<1
-python-multipart>=0.0.32
-ruamel.yaml>=0.19,<0.20
-mammoth>=1.13,<2
-pypdf>=6.21,<7
+# LinkedIn, Indeed and Glassdoor search (job_sources/scrapers.py)
+python-jobspy>=1.4,<2
+curl_cffi>=0.7  # Jobat only answers browser-like TLS clients
+# Web app
+fastapi>=0.115,<1
+python-multipart>=0.0.18
+ruamel.yaml>=0.18,<0.20
+mammoth>=1.8,<2
+pypdf>=5,<7
+# Accounts: database (MySQL on cPanel, SQLite locally), sessions, encrypted API keys
+SQLAlchemy>=2.0,<3
+PyMySQL>=1.1,<2
+cryptography>=42
+itsdangerous>=2.1,<3
+# Passenger (cPanel) speaks WSGI; this runs the ASGI app under it
+a2wsgi>=1.10,<2
+# Local server (python serve.py); not used by Passenger
+uvicorn>=0.30,<1

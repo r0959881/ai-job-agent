@@ -51,8 +51,12 @@ def glob_escape(text):
     return "".join(f"[{c}]" if c in "[]*?" else c for c in text)
 
 
-def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
-    """Write job details and links to the tailored CV files into an Excel workbook."""
+def export_jobs_to_excel(jobs, output_path, excluded_jobs=None, relative_cv_links=False):
+    """Write job details and links to the tailored CV files into an Excel workbook.
+
+    `output_path` may be a file-like object. With `relative_cv_links` each job's
+    cv_path is a path relative to the report (the web app's folder layout).
+    """
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "Jobs"
@@ -65,7 +69,8 @@ def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
         cell.fill = header_fill
 
     for job in jobs:
-        job["cv_path"] = find_existing_cv(job)
+        if not relative_cv_links:
+            job["cv_path"] = find_existing_cv(job)
         values = []
         for header, key in REPORT_COLUMNS:
             value = job.get(key, "") or ""
@@ -80,8 +85,12 @@ def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
         if url_cell.value:
             url_cell.hyperlink = url_cell.value
             url_cell.style = "Hyperlink"
-        cv_path = resolve_project_path(str(cv_cell.value)) if cv_cell.value else None
-        if cv_path and cv_path.exists():
+        cv_path = resolve_project_path(str(cv_cell.value)) if cv_cell.value and not relative_cv_links else None
+        if relative_cv_links and cv_cell.value:
+            cv_cell.hyperlink = str(cv_cell.value)
+            cv_cell.value = "Open tailored CV"
+            cv_cell.style = "Hyperlink"
+        elif cv_path and cv_path.exists():
             # A local URI avoids SharePoint treating the sibling filename as a web route.
             cv_cell.hyperlink = cv_path.resolve().as_uri()
             cv_cell.value = "Open tailored CV"
@@ -123,6 +132,9 @@ def export_jobs_to_excel(jobs, output_path, excluded_jobs=None):
         excluded.freeze_panes = "A2"
         excluded.auto_filter.ref = excluded.dimensions
 
+    if hasattr(output_path, "write"):
+        workbook.save(output_path)
+        return output_path
     target = resolve_project_path(output_path)
     os.makedirs(target.parent, exist_ok=True)
     workbook.save(target)

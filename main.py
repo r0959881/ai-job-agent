@@ -2,11 +2,11 @@ from datetime import datetime, timedelta, timezone
 import sqlite3
 
 import agent_settings
+import languages
 from agent_log import check_cancelled, event_scope, log, step
 from config import DB_PATH
 from database import init_db, record_document, transaction
-from discovery import run_discovery
-from discovery import is_relevant_job
+from discovery import DISCOVERY_SOURCES, classify_target_role, is_relevant_job, run_discovery, run_scope
 from gmail_parser import GmailAuthRequired, parse_email_alerts
 from tailor import GroqConfigError, check_groq_key, describe_error, get_client, tailor_cv_for_job
 from report import export_jobs_to_excel, find_existing_cv
@@ -27,9 +27,14 @@ def is_recent_job(posted_at, discovered_at, cutoff):
     return job_date is not None and job_date >= cutoff
 
 
-def refresh_job_statuses(jobs):
+def role_of(job, settings):
+    """Stored role family, or one inferred from the title and description for older rows."""
+    return job["role_family"] or classify_target_role(job["title"], job["description"] or "", settings=settings)
+
+
+def refresh_job_statuses(jobs, settings=None):
     """Re-evaluate old rows using the complete stored description."""
-    settings = agent_settings.load()
+    settings = settings or agent_settings.load()
     eligible_ids = [
         job["id"] for job in jobs
         if is_relevant_job(job["title"], job["description"], job["location"], settings=settings)
@@ -42,10 +47,10 @@ def refresh_job_statuses(jobs):
     return set(eligible_ids)
 
 
-def _run_gmail(interactive):
+def _run_gmail(interactive, settings=None):
     step("gmail", "started", "Reading Gmail job alerts")
     try:
-        counts = parse_email_alerts(interactive=interactive)
+        counts = parse_email_alerts(interactive=interactive, settings=settings)
     except GmailAuthRequired as error:
         log(f"⚠️ Gmail skipped: {error.reason}", level="warning")
         step("gmail", "warning", error.reason, {"action": "reconnect_gmail", "gmail_status": error.status})
@@ -62,8 +67,11 @@ def run_agent(on_event=None, options=None, cancel_event=None, run_id=None, inter
     """Run the full pipeline.
 
     on_event(step, status, message, data) receives progress events; options can
-    contain sources (list), time_window_hours, max_tailor and dry_run. With no
-    arguments it behaves exactly like the original CLI.
+    contain sources (list), regions (region ids), roles (role names), languages
+    (language ids), time_window_hours, max_tailor and dry_run. Without regions
+    the default regions from the settings are searched; without roles every
+    target role is; without languages the default languages are kept (an empty
+    list keeps every language).
     Returns a summary dict with counts and the report path.
     """
     with event_scope(on_event, cancel_event):
@@ -71,8 +79,12 @@ def run_agent(on_event=None, options=None, cancel_event=None, run_id=None, inter
 
 
 def _run_agent(options, run_id, interactive):
-    settings = agent_settings.load()
-    window_hours = int(options.get("time_window_hours") or settings["time_window_hours"])
+    window_hours = int(options.get("time_window_hours") or agent_settings.get("time_window_hours"))
+    roles = options.get("roles")
+    job_languages = options.get("languages")
+    if job_languages is None:
+        job_languages = agent_settings.get("languages")
+    settings, search_context = run_scope(agent_settings.load(), options.get("regions"), roles, window_hours)
     enabled = {name for name, on in settings["sources"].items() if on}
     sources = set(options["sources"]) if options.get("sources") is not None else enabled
     max_tailor = options.get("max_tailor")
@@ -90,13 +102,13 @@ def _run_agent(options, run_id, interactive):
     step("init_db", "succeeded", "Database ready")
     check_cancelled()
 
-    # 2. Discover & Ingest Belgian jobs across APIs and Gmail alerts
-    discovered = run_discovery(sources=sources & {"adzuna", "arbeitnow"})
+    # 2. Discover jobs in the chosen regions across scrapers, job APIs and Gmail alerts
+    discovered = run_discovery(sources=sources & DISCOVERY_SOURCES, settings=settings, ctx=search_context)
     for key in ("discovered", "new", "filtered"):
         summary[key] += discovered[key]
     check_cancelled()
     if "gmail" in sources:
-        gmail_counts = _run_gmail(interactive)
+        gmail_counts = _run_gmail(interactive, settings)
         if gmail_counts:
             for key in ("discovered", "new", "filtered"):
                 summary[key] += gmail_counts[key]
@@ -114,20 +126,34 @@ def _run_agent(options, run_id, interactive):
     ).fetchall()
     conn.close()
 
-    eligible_ids = refresh_job_statuses(jobs)
+    eligible_ids = refresh_job_statuses(jobs, settings)
 
-    recent_jobs = [
+    in_scope = [
         dict(job) for job in jobs
         if is_recent_job(job["posted_at"], job["discovered_at"], cutoff)
         and job["id"] in eligible_ids
+        and (roles is None or role_of(job, settings) in roles)
     ]
+    language_reasons = {}
+    for job in in_scope:
+        keep, reason = languages.check_job(job["title"], job["description"], job_languages)
+        if not keep:
+            language_reasons[job["id"]] = reason
+    recent_jobs = [job for job in in_scope if job["id"] not in language_reasons]
+    if language_reasons:
+        log(f"🌐 {len(language_reasons)} job(s) skipped because of their language.")
     recent_ids = {job["id"] for job in recent_jobs}
     excluded_jobs = [dict(job) for job in jobs if job["id"] not in recent_ids]
     for job in excluded_jobs:
-        job["exclusion_reason"] = f"Outside {window_hours}-hour window or eligibility filter"
+        job["exclusion_reason"] = language_reasons.get(job["id"]) or (
+            f"Outside {window_hours}-hour window, the selected regions or roles, or the eligibility filter")
     summary["eligible"] = len(recent_jobs)
-    step("filter", "succeeded", f"{len(recent_jobs)} eligible of {len(jobs)} stored jobs",
-         {"eligible": len(recent_jobs), "total": len(jobs)})
+    summary["language_filtered"] = len(language_reasons)
+    message = f"{len(recent_jobs)} eligible of {len(jobs)} stored jobs"
+    if language_reasons:
+        message += f", {len(language_reasons)} skipped for language"
+    step("filter", "succeeded", message,
+         {"eligible": len(recent_jobs), "total": len(jobs), "language_filtered": len(language_reasons)})
 
     to_tailor = [job for job in recent_jobs if not job.get("cv_path")]
     if max_tailor is not None:

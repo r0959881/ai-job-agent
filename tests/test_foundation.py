@@ -1,4 +1,4 @@
-"""Phase 1: config, settings, logger, migrations, backfill and the API skeleton."""
+"""Config, settings, logger and the command-line database migrations."""
 import importlib
 import shutil
 import sqlite3
@@ -95,7 +95,7 @@ def test_tailor_imports_without_a_groq_key():
     import tailor
 
     importlib.reload(tailor)
-    with pytest.raises(tailor.GroqConfigError, match="GROQ_API_KEY is not configured"):
+    with pytest.raises(tailor.GroqConfigError, match="No Groq API key is set"):
         tailor.get_client()
 
 
@@ -108,6 +108,9 @@ def test_migrations_are_idempotent_on_a_copy_of_the_real_db(project_root):
     shutil.copy(real_db, config.DB_PATH)
     with closing(sqlite3.connect(config.DB_PATH)) as conn:
         before = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        columns_before = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+        statuses_before = ({row[0] for row in conn.execute("SELECT DISTINCT application_status FROM jobs")}
+                           if "application_status" in columns_before else {"not_applied"})
     init_db()
     init_db()
     with closing(sqlite3.connect(config.DB_PATH)) as conn:
@@ -118,61 +121,7 @@ def test_migrations_are_idempotent_on_a_copy_of_the_real_db(project_root):
     assert {"role_family", "application_status", "applied_at", "notes", "cover_letter_path"} <= columns
     assert {"jobs", "runs", "documents"} <= tables
     assert after == before
-    assert statuses <= {"not_applied"}
-
-
-def test_backfill_links_files_to_jobs(project_root):
-    from api.services.documents import backfill_documents
-    from database import init_db, transaction
-
-    init_db()
-    with transaction() as conn:
-        conn.execute("INSERT INTO jobs (id, title, company, location) VALUES ('j1', 'Junior Data Engineer', 'Acme', 'Gent')")
-    out = project_root / "output"
-    (out / "Ammar_Haider_CV_Acme_Junior Data Engineer.docx").write_bytes(b"x")
-    (out / "Ammar_Haider_CV_Sample_Data Analyst.docx").write_bytes(b"x")
-    (out / "Ammar_Haider_Cover_Letter_Data Engineer.docx").write_bytes(b"x")
-    (out / "job_report_20260101_000000.xlsx").write_bytes(b"x")
-
-    counts = backfill_documents()
-    assert counts["added"] == 4 and counts["linked"] == 1
-    assert backfill_documents()["added"] == 0  # idempotent
-    with transaction() as conn:
-        rows = {r[0]: r[1:] for r in conn.execute("SELECT path, kind, job_id, role_family FROM documents")}
-    assert rows["output/Ammar_Haider_CV_Acme_Junior Data Engineer.docx"] == ("cv", "j1", "Data Engineer")
-    assert rows["output/Ammar_Haider_CV_Sample_Data Analyst.docx"] == ("cv", None, "Data Analyst")
-    assert rows["output/Ammar_Haider_Cover_Letter_Data Engineer.docx"] == ("cover_letter", None, "Data Engineer")
-    assert rows["output/job_report_20260101_000000.xlsx"][0] == "report"
-
-    (out / "job_report_20260101_000000.xlsx").unlink()
-    assert backfill_documents()["removed"] == 1
-
-
-def test_health_and_session(client):
-    assert client.get("/api/health").json()["status"] == "ok"
-    assert client.get("/api/session").json()["token"] == client.headers["X-UI-Token"]
-
-
-def test_mutations_need_the_ui_token(client):
-    response = client.post("/api/runs", json={}, headers={"X-UI-Token": "wrong"})
-    assert response.status_code == 403
-    response = client.post("/api/runs", json={}, headers={"Origin": "http://evil.example"})
-    assert response.status_code == 403
-
-
-def test_only_localhost_hosts_are_served():
-    from fastapi.testclient import TestClient
-
-    from api.app import create_app
-
-    with TestClient(create_app(run_startup=False), base_url="http://attacker.example") as other:
-        assert other.get("/api/health").status_code == 400
-
-
-def test_unknown_api_paths_return_json_404(client):
-    response = client.get("/api/nope")
-    assert response.status_code == 404
-    assert "No API endpoint" in response.json()["detail"]
+    assert statuses == statuses_before  # migrating never changes what the user recorded
 
 
 def test_log_survives_a_console_that_cannot_print_emoji(monkeypatch):

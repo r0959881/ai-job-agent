@@ -1,4 +1,4 @@
-/* Shapes returned by the FastAPI backend (api/models). */
+/* Shapes returned by the server API and by the local store (lib/local). */
 
 export interface PersonalInfo {
   full_name: string;
@@ -116,11 +116,15 @@ export interface SearchSettings {
   blocked_locations: string[];
   trusted_alert_sources: string[];
   time_window_hours: number;
-  sources: { adzuna: boolean; arbeitnow: boolean; gmail: boolean };
+  regions: string[];
+  languages: string[];
+  sources: Record<string, boolean>;
+  scraping: { results_per_search: number; linkedin_descriptions: boolean; proxies: string[] };
+  company_boards: string[];
   adzuna: { country: string; location: string; results_per_page: number };
-  gmail: { senders: string[]; lookback_days: number; max_results: number };
+  gmail?: { senders: string[]; lookback_days: number; max_results: number };
   cover_letters: Record<string, { opening: string; evidence: string; fit: string; closing: string }>;
-  alerts: { smtp_enabled: boolean };
+  alerts?: { smtp_enabled: boolean };
 }
 
 export interface SettingsResponse {
@@ -139,8 +143,6 @@ export interface IntegrationHealth {
 export interface IntegrationsStatus {
   groq: IntegrationHealth;
   adzuna: IntegrationHealth;
-  gmail: IntegrationHealth;
-  smtp: IntegrationHealth;
 }
 
 export interface SecretField {
@@ -149,24 +151,6 @@ export interface SecretField {
   group: string;
   set: boolean;
   masked: string;
-}
-
-export type GmailState = "not_connected" | "connected" | "reauth_required" | "error";
-
-export interface GmailStatus {
-  state: GmailState;
-  connected: boolean;
-  email: string | null;
-  scopes: string[];
-  read_only: boolean;
-  token_expiry: string | null;
-  last_refresh: string | null;
-  last_fetch: string | null;
-  last_message_count: number | null;
-  reason: string;
-  credentials_present: boolean;
-  client_type: string | null;
-  redirect_uri: string;
 }
 
 export type RunStatus = "running" | "succeeded" | "failed" | "cancelled";
@@ -184,6 +168,10 @@ export interface RunStep {
 
 export interface RunOptions {
   sources: string[];
+  regions: string[];
+  roles: string[];
+  /** Empty means any language. */
+  languages: string[];
   time_window_hours: number;
   max_tailor: number | null;
   dry_run: boolean;
@@ -250,6 +238,10 @@ export interface Job {
   apply_checklist: Record<string, boolean>;
   has_cv: boolean;
   eligible?: boolean;
+  /** When a run last returned this job (it may have been added much earlier). */
+  last_seen_at?: string;
+  /** The run that last returned it. */
+  last_run_id?: number | null;
 }
 
 export interface JobDetail extends Job {
@@ -301,4 +293,47 @@ export interface Stats {
   last_run: Run | null;
   ready_to_apply: Job[];
   integrations: IntegrationsStatus;
+}
+
+export interface Region {
+  id: string;
+  label: string;
+  group: string;
+  flag: string;
+}
+
+export interface JobLanguage {
+  id: string;
+  label: string;
+}
+
+export interface SearchRole {
+  name: string;
+  focus: string;
+  has_profile: boolean;
+  keywords: string[];
+  queries: string[];
+  searches_by_name: boolean;
+}
+
+export type SourceKind = "scraper" | "api" | "email";
+
+export interface SearchSource {
+  key: string;
+  label: string;
+  kind: SourceKind;
+  description: string;
+  default: boolean;
+  configured: boolean;
+  setup_hint: string;
+  regions: string[];
+}
+
+export interface SearchCatalog {
+  regions: Region[];
+  groups: string[];
+  languages: JobLanguage[];
+  roles: SearchRole[];
+  sources: SearchSource[];
+  defaults: { regions: string[]; roles: string[]; languages: string[]; time_window_hours: number };
 }

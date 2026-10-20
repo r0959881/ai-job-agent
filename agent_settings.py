@@ -9,6 +9,7 @@ import threading
 
 import yaml
 
+import user_scope
 from config import SETTINGS_PATH, atomic_write_text
 
 DEFAULTS = {
@@ -70,7 +71,20 @@ DEFAULTS = {
         "Indeed Alerts", "LinkedIn Alerts",
     ],
     "time_window_hours": 48,
-    "sources": {"adzuna": True, "arbeitnow": True, "gmail": True},
+    # Countries searched when a run does not pick its own (ids from regions.py).
+    "regions": ["BE", "NL"],
+    # Languages a job may be posted in or require (ids from languages.py). Empty means any language.
+    "languages": ["en"],
+    # Which sources a run uses by default (keys of job_sources.SOURCES).
+    "sources": {
+        "linkedin": True, "indeed": True, "glassdoor": False, "stepstone": True, "jobat": True, "michaelpage": True,
+        "vdab": True, "adzuna": True, "arbeitnow": True,
+        "arbeitsagentur": True, "jobtech": True, "remotive": True, "himalayas": True, "jobicy": True,
+        "remoteok": True, "company_boards": True, "gmail": True,
+    },
+    "scraping": {"results_per_search": 25, "linkedin_descriptions": True, "proxies": []},
+    # Career pages to follow, as "ats:company" (greenhouse, lever, ashby, recruitee, smartrecruiters).
+    "company_boards": [],
     "adzuna": {"country": "be", "location": "Belgium", "results_per_page": 50},
     "gmail": {
         "senders": [
@@ -95,7 +109,7 @@ def _merge(defaults, override):
     merged = copy.deepcopy(defaults)
     for key, value in override.items():
         if key in merged and isinstance(merged[key], dict) and isinstance(value, dict) and key in {
-            "sources", "adzuna", "gmail", "alerts",
+            "sources", "adzuna", "gmail", "alerts", "scraping",
         }:
             merged[key] = {**merged[key], **value}
         elif value is not None:
@@ -104,7 +118,15 @@ def _merge(defaults, override):
 
 
 def load(path=None):
-    """Return the effective settings (file values over DEFAULTS), cached by mtime."""
+    """Return the effective settings (file values over DEFAULTS), cached by mtime.
+
+    For a signed-in web user the values come from their row in the server database.
+    """
+    scope = user_scope.current()
+    if scope is not None and path is None:
+        from api import store
+
+        return copy.deepcopy(scope.cached("settings", lambda: _merge(DEFAULTS, store.get_settings(scope.user_id))))
     path = path or SETTINGS_PATH
     try:
         mtime = path.stat().st_mtime_ns
@@ -138,6 +160,13 @@ def dump(data):
 
 
 def save(data, path=None):
+    scope = user_scope.current()
+    if scope is not None and path is None:
+        from api import store
+
+        store.set_settings(scope.user_id, data)
+        scope.forget("settings")
+        return load()
     path = path or SETTINGS_PATH
     atomic_write_text(path, dump(data))
     with _lock:

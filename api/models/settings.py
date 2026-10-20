@@ -1,4 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+import languages
+import regions
+from job_sources.boards import parse_company_board
 
 
 def _clean(values):
@@ -12,9 +16,34 @@ def _clean(values):
 
 
 class Sources(BaseModel):
+    linkedin: bool = True
+    indeed: bool = True
+    glassdoor: bool = False
+    stepstone: bool = True
+    jobat: bool = True
+    michaelpage: bool = True
+    vdab: bool = True
     adzuna: bool = True
     arbeitnow: bool = True
+    arbeitsagentur: bool = True
+    jobtech: bool = True
+    remotive: bool = True
+    himalayas: bool = True
+    jobicy: bool = True
+    remoteok: bool = True
+    company_boards: bool = True
     gmail: bool = True
+
+
+class ScrapingSettings(BaseModel):
+    results_per_search: int = Field(default=25, ge=5, le=100)
+    linkedin_descriptions: bool = True
+    proxies: list[str] = Field(default_factory=list)
+
+    @field_validator("proxies", mode="before")
+    @classmethod
+    def clean_proxies(cls, value):
+        return _clean(value)
 
 
 class AdzunaSettings(BaseModel):
@@ -59,11 +88,15 @@ class SearchSettings(BaseModel):
     search_queries: dict[str, list[str]] = Field(default_factory=dict)
     entry_level_keywords: list[str] = Field(default_factory=list)
     exclude_title_keywords: list[str] = Field(default_factory=list)
-    allowed_locations: list[str] = Field(min_length=1)
+    allowed_locations: list[str] = Field(default_factory=list)
     blocked_locations: list[str] = Field(default_factory=list)
     trusted_alert_sources: list[str] = Field(default_factory=list)
     time_window_hours: int = Field(default=48, ge=1, le=24 * 60)
+    regions: list[str] = Field(default_factory=lambda: ["BE", "NL"])
+    languages: list[str] = Field(default_factory=lambda: ["en"])
     sources: Sources = Field(default_factory=lambda: Sources())
+    scraping: ScrapingSettings = Field(default_factory=lambda: ScrapingSettings())
+    company_boards: list[str] = Field(default_factory=list)
     adzuna: AdzunaSettings = Field(default_factory=lambda: AdzunaSettings())
     gmail: GmailSettings = Field(default_factory=lambda: GmailSettings())
     cover_letters: dict[str, CoverLetter] = Field(default_factory=dict)
@@ -98,6 +131,43 @@ class SearchSettings(BaseModel):
     def clean_lists(cls, value):
         return _clean(value)
 
+    @model_validator(mode="after")
+    def somewhere_to_search(self):
+        if not self.regions and not self.allowed_locations:
+            raise ValueError("Pick at least one region or allowed location")
+        return self
+
+    @field_validator("regions", mode="before")
+    @classmethod
+    def known_regions(cls, value):
+        ids = [str(region).strip().upper() for region in _clean(value)]
+        unknown = [region for region in ids if not regions.get(region)]
+        if unknown:
+            raise ValueError(f"Unknown region(s): {', '.join(unknown)}")
+        return ids
+
+    @field_validator("languages", mode="before")
+    @classmethod
+    def known_languages(cls, value):
+        ids = [str(code).strip().lower() for code in _clean(value)]
+        unknown = [code for code in ids if not languages.get(code)]
+        if unknown:
+            raise ValueError(f"Unknown language(s): {', '.join(unknown)}")
+        return ids
+
+    @field_validator("company_boards", mode="before")
+    @classmethod
+    def valid_company_boards(cls, value):
+        boards = []
+        for entry in _clean(value):
+            parsed = parse_company_board(entry)
+            if not parsed:
+                raise ValueError(
+                    f"“{entry}” should look like greenhouse:company (also lever, ashby, recruitee, smartrecruiters)"
+                )
+            boards.append(f"{parsed[0]}:{parsed[1]}")
+        return boards
+
     @field_validator("allowed_locations", mode="before")
     @classmethod
     def clean_locations(cls, value):
@@ -117,7 +187,7 @@ def settings_warnings(settings: dict, resume_role_profiles=None) -> list[str]:
             warnings.append(f"Search queries are set for “{role}”, which is not a target role.")
     for role in roles:
         if not settings.get("search_queries", {}).get(role):
-            warnings.append(f"“{role}” has no Adzuna search queries, so Adzuna will not search for it.")
+            warnings.append(f"“{role}” has no search queries, so job sites are searched for “{role}” itself.")
     if resume_role_profiles is not None:
         for role in roles - set(resume_role_profiles):
             warnings.append(f"“{role}” has no role profile in your resume yet. Add one under Profile → Role profiles.")

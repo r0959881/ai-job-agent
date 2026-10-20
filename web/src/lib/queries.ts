@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { GmailStatus, IntegrationsStatus, Run, RunStep } from "@/lib/types";
+import type { IntegrationsStatus, Run, RunStep, SearchCatalog } from "@/lib/types";
 
 export const keys = {
   resume: ["resume"] as const,
   resumeRaw: ["resume", "raw"] as const,
   backups: ["resume", "backups"] as const,
   settings: ["settings", "search"] as const,
+  catalog: ["search", "catalog"] as const,
   secrets: ["settings", "secrets"] as const,
   integrations: ["integrations"] as const,
-  gmail: ["integrations", "gmail"] as const,
   runs: ["runs"] as const,
   run: (id: number) => ["runs", id] as const,
   jobs: (params: string) => ["jobs", params] as const,
@@ -24,7 +24,7 @@ export interface RunsList {
   active?: (Run & { steps: RunStep[] }) | null;
 }
 
-/** Polls lightly so the top bar knows when a run is active (SSE takes over on the run page). */
+/** Polls the local run list lightly so the top bar knows when a run is active. */
 export function useRunsList(limit = 50) {
   return useQuery({
     queryKey: [...keys.runs, limit],
@@ -41,10 +41,11 @@ export function useIntegrations() {
   });
 }
 
-export function useGmailStatus() {
+export function useSearchCatalog(enabled = true) {
   return useQuery({
-    queryKey: keys.gmail,
-    queryFn: () => api.get<GmailStatus>("/api/integrations/gmail/status"),
+    queryKey: keys.catalog,
+    queryFn: () => api.get<SearchCatalog>("/api/search/catalog"),
+    enabled,
     staleTime: 30_000,
   });
 }

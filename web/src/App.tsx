@@ -7,6 +7,7 @@ import { RunDialogProvider } from "@/components/layout/RunControl";
 import { RunNotifier } from "@/features/runs/RunNotifier";
 import { SkeletonRows } from "@/components/states";
 import { TooltipProvider } from "@/components/ui/overlays";
+import { RequireUser } from "@/lib/session";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 
 const DashboardPage = React.lazy(() => import("@/pages/DashboardPage"));
@@ -19,21 +20,24 @@ const RunDetailPage = React.lazy(() => import("@/pages/RunDetailPage"));
 const SettingsPage = React.lazy(() => import("@/pages/SettingsPage"));
 const OnboardingPage = React.lazy(() => import("@/pages/OnboardingPage"));
 const NotFoundPage = React.lazy(() => import("@/pages/NotFoundPage"));
+const LoginPage = React.lazy(() => import("@/pages/LoginPage"));
 
 function ThemedToaster() {
   const { resolved } = useTheme();
   return <Toaster theme={resolved} position="bottom-right" richColors closeButton duration={5000} />;
 }
 
-/** Providers that need the router (navigation from dialogs) live inside it. */
+/** Providers that need the router (navigation from dialogs) live inside it. Everything here needs a user. */
 function RootLayout() {
   return (
-    <RunDialogProvider>
-      <RunNotifier />
-      <React.Suspense fallback={<SkeletonRows className="p-8" />}>
-        <Outlet />
-      </React.Suspense>
-    </RunDialogProvider>
+    <RequireUser>
+      <RunDialogProvider>
+        <RunNotifier />
+        <React.Suspense fallback={<SkeletonRows className="p-8" />}>
+          <Outlet />
+        </React.Suspense>
+      </RunDialogProvider>
+    </RequireUser>
   );
 }
 
@@ -44,6 +48,7 @@ const page = (Component: React.ComponentType) => (
 );
 
 export const routes = [
+  { path: "/login", element: page(LoginPage) },
   {
     element: <RootLayout />,
     children: [

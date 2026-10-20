@@ -29,19 +29,49 @@ import { useStartRun } from "@/components/layout/RunControl";
 import { EmptyState, ErrorState, SkeletonRows } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Select } from "@/components/ui/controls";
-import { Input } from "@/components/ui/primitives";
+import { Badge, Input } from "@/components/ui/primitives";
 import { Tooltip } from "@/components/ui/overlays";
 import { useJobFilters } from "@/features/jobs/useJobFilters";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/queries";
 import type { Job, JobsPage as JobsPageData } from "@/lib/types";
-import { cn, formatSalary } from "@/lib/utils";
+import { cn, formatSalary, formatShortDateTime } from "@/lib/utils";
 
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
   { value: "processed", label: "CV ready" },
   { value: "rejected", label: "Filtered out" },
 ];
+
+const ADDED_OPTIONS = [
+  { value: "any", label: "Added any time" },
+  { value: "1h", label: "Added in the last hour" },
+  { value: "24h", label: "Added in the last 24 hours" },
+  { value: "7d", label: "Added in the last 7 days" },
+  { value: "run", label: "Found by the latest run" },
+];
+
+/** When the job came into the app (not when the employer posted it). */
+function AddedCell({ value, seen }: { value: string; seen?: string }) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  const fresh = Date.now() - new Date(value).getTime() < 3600_000;
+  // Found again by a later run (more than an hour after it was first added).
+  const seenAgain = seen && new Date(seen).getTime() - new Date(value).getTime() > 3600_000 ? seen : "";
+  return (
+    <span className="flex min-w-[7rem] flex-col gap-0.5">
+      <span className="flex items-center gap-1.5">
+        <RelativeTime value={value} />
+        {fresh && <Badge variant="success">New</Badge>}
+      </span>
+      <span className="text-caption text-muted-foreground tabular">{formatShortDateTime(value)}</span>
+      {seenAgain && (
+        <span className="text-caption text-muted-foreground">
+          seen again <RelativeTime value={seenAgain} />
+        </span>
+      )}
+    </span>
+  );
+}
 
 const QUICK = [
   { value: "ready", label: "Ready to apply" },
@@ -116,6 +146,12 @@ function columns(): ColumnDef<Job, unknown>[] {
       accessorKey: "source",
       header: "Source",
       cell: ({ row }) => <SourceBadge source={row.original.source} />,
+    },
+    {
+      id: "discovered",
+      header: "Added",
+      accessorKey: "discovered_at",
+      cell: ({ row }) => <AddedCell value={row.original.discovered_at} seen={row.original.last_seen_at} />,
     },
     {
       id: "posted",
@@ -294,8 +330,17 @@ export default function JobsPage() {
               className="h-8 text-caption"
             />
           </div>
+          <div className="w-52">
+            <Select
+              aria-label="Added to the app"
+              value={filters.added || "any"}
+              onValueChange={(v) => update({ added: v === "any" ? "" : (v as typeof filters.added) })}
+              options={ADDED_OPTIONS}
+              className="h-8 text-caption"
+            />
+          </div>
           <label className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            From
+            Posted from
             <Input
               type="date"
               className="h-8 w-36 text-caption"
@@ -398,7 +443,7 @@ export default function JobsPage() {
           <EmptyState
             icon={Briefcase}
             title="No jobs yet"
-            description="Run the agent to search Adzuna, Arbeitnow and your Gmail job alerts."
+            description="Run the agent to search LinkedIn, Indeed, national job sites and more for your roles."
             action={<Button onClick={startRun}>Run agent</Button>}
           />
         ))}

@@ -131,7 +131,8 @@ class Resume(_Base):
 
 
 def is_empty(resume: Resume) -> bool:
-    return not resume.personal_info.full_name.strip() and not resume.experience and not resume.projects
+    """Nothing to build a CV from yet. A name and email alone (filled in at sign-up) still count as empty."""
+    return not resume.experience and not resume.projects and not resume.core_skills
 
 
 def cross_reference_warnings(resume: Resume, target_roles=None) -> list[str]:

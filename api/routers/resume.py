@@ -9,7 +9,7 @@ from api.services.preview import sample_cv_html
 
 router = APIRouter(prefix="/api/resume", tags=["resume"])
 
-MAX_UPLOAD = 50 * 1024 * 1024
+MAX_UPLOAD = 10 * 1024 * 1024
 
 
 class ResumePut(BaseModel):
@@ -46,7 +46,7 @@ def get_resume():
     except resume_store.ResumeInvalid as exc:
         raise HTTPException(
             422,
-            {"message": "resume_data.yaml has problems. Open the YAML editor to fix them.", "errors": exc.errors},
+            {"message": "Your profile has problems. Open the YAML editor (Profile → Advanced) to fix them.", "errors": exc.errors},
         ) from exc
 
 

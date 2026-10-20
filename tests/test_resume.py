@@ -2,8 +2,7 @@
 import copy
 
 import yaml
-
-import config
+from helpers import resume_text, set_resume_text
 
 
 def get(client):
@@ -22,12 +21,12 @@ def test_get_returns_the_yaml_structure(client):
 
 
 def test_save_without_changes_is_byte_identical_and_makes_no_backup(client):
-    before = config.RESUME_PATH.read_text(encoding="utf-8")
+    before = resume_text()
     body = get(client)
     response = client.put("/api/resume", json={"data": body["data"], "etag": body["etag"]})
     assert response.status_code == 200
     assert response.json()["backup_id"] is None
-    assert config.RESUME_PATH.read_text(encoding="utf-8") == before
+    assert resume_text() == before
 
 
 def test_edits_round_trip_through_the_cli_reader(client, project_root):
@@ -43,7 +42,7 @@ def test_edits_round_trip_through_the_cli_reader(client, project_root):
     assert response.status_code == 200, response.text
     assert response.json()["backup_id"]
 
-    text = config.RESUME_PATH.read_text(encoding="utf-8")
+    text = resume_text()
     on_disk = yaml.safe_load(text)
     assert on_disk["experience"][0]["company"] == "NewCo"
     assert on_disk["core_skills"]["cloud_extra"] == ["GCP"]
@@ -57,7 +56,7 @@ def test_edits_round_trip_through_the_cli_reader(client, project_root):
 
 
 def test_invalid_data_returns_field_errors_and_writes_nothing(client):
-    before = config.RESUME_PATH.read_text(encoding="utf-8")
+    before = resume_text()
     data = get(client)["data"]
     data["experience"][0]["company"] = ""
     data["personal_info"]["email"] = "not-an-email"
@@ -67,13 +66,12 @@ def test_invalid_data_returns_field_errors_and_writes_nothing(client):
     locs = {".".join(e["loc"]) for e in errors}
     assert {"experience.0.company", "personal_info.email"} <= locs
     assert any(e["msg"] == "This field is required." for e in errors)
-    assert config.RESUME_PATH.read_text(encoding="utf-8") == before
+    assert resume_text() == before
 
 
 def test_stale_etag_is_rejected(client):
     body = get(client)
-    config.RESUME_PATH.write_text(config.RESUME_PATH.read_text(encoding="utf-8") + "\n# edited elsewhere\n",
-                                  encoding="utf-8")
+    set_resume_text(resume_text() + "\n# edited elsewhere\n")
     response = client.put("/api/resume", json={"data": body["data"], "etag": body["etag"]})
     assert response.status_code == 409
 
@@ -81,7 +79,7 @@ def test_stale_etag_is_rejected(client):
 def test_backups_are_listed_restorable_and_capped(client):
     from api.services import resume_store
 
-    original = config.RESUME_PATH.read_text(encoding="utf-8")
+    original = resume_text()
     data = get(client)["data"]
     for index in range(23):
         data["personal_info"]["headline"] = f"Headline {index}"
@@ -96,7 +94,7 @@ def test_backups_are_listed_restorable_and_capped(client):
     restored = client.post(f"/api/resume/backups/{first}/restore")
     assert restored.status_code == 200
     assert restored.json()["data"]["personal_info"]["headline"] == "Headline 2"
-    assert original != config.RESUME_PATH.read_text(encoding="utf-8")
+    assert original != resume_text()
 
 
 def test_backup_ids_cannot_escape_the_backup_folder(client):
@@ -125,12 +123,12 @@ def test_raw_save_keeps_comments(client):
     data = body["data"]
     data["languages"].append("French: A1")
     assert client.put("/api/resume", json={"data": data, "etag": body["etag"]}).status_code == 200
-    saved = config.RESUME_PATH.read_text(encoding="utf-8")
+    saved = resume_text()
     assert saved.startswith("# my comment\n") and '"French: A1"' in saved
 
 
-def test_missing_resume_is_empty_not_an_error(client, project_root):
-    (project_root / "resume_data.yaml").unlink()
+def test_missing_resume_is_empty_not_an_error(client):
+    set_resume_text("")
     body = get(client)
     assert body["empty"] is True
     assert body["data"]["experience"] == []

@@ -313,7 +313,7 @@ export default function ProfilePage() {
           </React.Suspense>
         ) : (
           <ErrorState
-            title={yamlBroken ? "resume_data.yaml has problems" : "Your profile could not be loaded"}
+            title={yamlBroken ? "Your profile YAML has problems" : "Your profile could not be loaded"}
             error={resume.error}
             onRetry={yamlBroken ? () => setYamlMode(true) : () => resume.refetch()}
           />

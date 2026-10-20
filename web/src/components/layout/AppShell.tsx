@@ -16,6 +16,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette";
 import { RunControl } from "@/components/layout/RunControl";
 import { Shortcuts } from "@/components/layout/Shortcuts";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/primitives";
 import { Sheet, SheetContent, SheetTitle, Tooltip } from "@/components/ui/overlays";
@@ -179,6 +180,7 @@ export function AppShell() {
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
             <RunControl />
+            <UserMenu />
           </div>
         </header>
         <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 outline-none">

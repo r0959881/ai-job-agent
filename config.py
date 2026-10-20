@@ -68,6 +68,15 @@ def atomic_write_text(path, text, encoding="utf-8"):
 
 
 def load_resume_file(path=None):
+    """The master resume as plain data, or None. A signed-in web user's resume comes from the database."""
+    import user_scope
+
+    scope = user_scope.current()
+    if scope is not None and path is None:
+        from api import store
+
+        text = scope.cached("resume_text", lambda: store.get_resume_text(scope.user_id))
+        return (yaml.safe_load(text) or {}) if text.strip() else None
     path = Path(path or RESUME_PATH)
     if not path.exists():
         return None

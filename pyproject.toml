@@ -7,16 +7,16 @@ markers = ["e2e: browser end-to-end tests against a built web app"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py311"
 # The legacy CLI modules keep their original style; lint the new code.
-include = ["api/**/*.py", "tests/**/*.py", "config.py", "agent_settings.py", "agent_log.py", "serve.py"]
+include = ["api/**/*.py", "tests/**/*.py", "job_sources/**/*.py", "config.py", "agent_settings.py", "agent_log.py", "regions.py", "languages.py", "user_scope.py", "serve.py", "passenger_wsgi.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["E501", "B008"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 files = ["api"]
 ignore_missing_imports = true
 follow_imports = "silent"

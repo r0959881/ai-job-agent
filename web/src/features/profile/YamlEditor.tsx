@@ -73,7 +73,7 @@ export function YamlEditor({ onClose }: { onClose: () => void }) {
         yamlLinter,
         editorTheme,
         EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ "aria-label": "resume_data.yaml" }),
+        EditorView.contentAttributes.of({ "aria-label": "Profile YAML" }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) setDirty(true);
         }),
@@ -92,7 +92,7 @@ export function YamlEditor({ onClose }: { onClose: () => void }) {
         etag: raw.data?.etag,
       }),
     onSuccess: (result) => {
-      toast.success("resume_data.yaml saved", {
+      toast.success("Profile YAML saved", {
         description: result.backup_id ? "The previous version is in History." : "No changes to save.",
       });
       setDirty(false);
@@ -110,8 +110,7 @@ export function YamlEditor({ onClose }: { onClose: () => void }) {
     <Card className="flex h-[calc(100vh-12rem)] min-h-[420px] flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 border-b p-3">
         <p className="flex-1 text-body text-muted-foreground">
-          Editing <span className="font-mono">resume_data.yaml</span> directly. Comments and formatting are
-          kept.
+          Editing your profile as YAML directly. Comments and formatting are kept.
         </p>
         {errors.length ? (
           <span className="flex items-center gap-1 text-body text-danger" role="status">

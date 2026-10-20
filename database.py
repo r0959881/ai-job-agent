@@ -102,12 +102,8 @@ def init_db(path=None, quiet=False):
         "UPDATE jobs SET discovered_at = datetime('now') "
         "WHERE COALESCE(discovered_at, '') = ''"
     )
-    allowed = agent_settings.get("allowed_locations") or list(ALLOWED_LOCATION_MARKERS)
-    location_filter = " OR ".join("LOWER(COALESCE(location, '')) LIKE ?" for _ in allowed)
-    cursor.execute(
-        f"DELETE FROM jobs WHERE NOT ({location_filter})",
-        tuple(f"%{marker}%" for marker in allowed),
-    )
+    # Jobs are filtered by location when they are saved (discovery.is_relevant_job), per run and
+    # region, so nothing is deleted here: a German or remote job from one run must survive the next save.
     conn.commit()
     conn.close()
     if not quiet:

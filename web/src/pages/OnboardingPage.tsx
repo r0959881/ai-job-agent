@@ -8,11 +8,11 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/primitives";
 import { ImportFlow, type ImportSource } from "@/features/onboarding/ImportFlow";
-import { GmailCard, useGmailRedirectToast } from "@/features/settings/GmailCard";
 import { SecretsPanel } from "@/features/settings/SecretsPanel";
+import { StorageCard } from "@/features/settings/StorageCard";
 import { TargetRolesQuick } from "@/features/settings/TargetRolesQuick";
 import { api } from "@/lib/api";
-import { keys } from "@/lib/queries";
+import { keys, useIntegrations } from "@/lib/queries";
 import type { ResumeResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -64,7 +64,8 @@ export default function OnboardingPage() {
   const [step, setStep] = React.useState(params.get("step") === "connect" ? 2 : 0);
   const [applied, setApplied] = React.useState(false);
   const [flowKey, setFlowKey] = React.useState(0);
-  useGmailRedirectToast();
+  const integrations = useIntegrations();
+  const needsGroq = integrations.data?.groq.status === "missing" && only !== "linkedin";
 
   const current = step === 2 ? 2 : stage === "source" && !applied ? 0 : 1;
   const finish = () => {
@@ -147,28 +148,39 @@ export default function OnboardingPage() {
                 </div>
               </Card>
             ) : (
-              <ImportFlow
-                key={flowKey}
-                only={only}
-                onStageChange={setStage}
-                onUseExisting={
-                  importOnly
-                    ? undefined
-                    : () => {
-                        if (resume.data?.empty) {
-                          toast.error("resume_data.yaml is empty", {
-                            description: "Upload a resume or a LinkedIn export instead.",
-                          });
-                          return;
+              <>
+                {needsGroq && stage === "source" && (
+                  <div className="mb-6 max-w-2xl space-y-2">
+                    <p className="text-body text-muted-foreground">
+                      Reading a PDF or Word resume needs your free Groq API key. A LinkedIn export works
+                      without one.
+                    </p>
+                    <SecretsPanel groups={["groq"]} />
+                  </div>
+                )}
+                <ImportFlow
+                  key={flowKey}
+                  only={only}
+                  onStageChange={setStage}
+                  onUseExisting={
+                    importOnly
+                      ? undefined
+                      : () => {
+                          if (resume.data?.empty) {
+                            toast.error("Your profile is still empty", {
+                              description: "Upload a resume or a LinkedIn export instead.",
+                            });
+                            return;
+                          }
+                          setStep(2);
                         }
-                        setStep(2);
-                      }
-                }
-                onApplied={() => {
-                  setApplied(true);
-                  resume.refetch();
-                }}
-              />
+                  }
+                  onApplied={() => {
+                    setApplied(true);
+                    resume.refetch();
+                  }}
+                />
+              </>
             )}
           </>
         ) : (
@@ -176,12 +188,12 @@ export default function OnboardingPage() {
             <div className="space-y-1">
               <h1 className="text-title">Connect & configure</h1>
               <p className="max-w-prose text-body text-muted-foreground">
-                Add your API keys and test them, connect Gmail for job-alert emails, and pick the roles to
-                search for. Everything here can be skipped and changed later in Settings.
+                Add your API keys and test them, choose the folder for your CVs, and pick the roles to search
+                for. Everything here can be skipped and changed later in Settings.
               </p>
             </div>
             <SecretsPanel groups={["groq", "adzuna"]} />
-            <GmailCard showSenders={false} returnTo="/onboarding?step=connect" />
+            <StorageCard />
             <TargetRolesQuick />
             <Card className="flex flex-wrap items-center gap-3 p-4">
               <p className="flex-1 text-body">You're set. The first run takes a few minutes.</p>

@@ -6,9 +6,8 @@ import zipfile
 
 import pytest
 import yaml
-from helpers import FakeGroq
+from helpers import FakeGroq, resume_text, set_resume_text, set_secret
 
-import config
 from api.importers.linkedin import LinkedInImportError, format_date, parse_linkedin_zip, split_bullets
 from api.importers.merge import apply_decisions, diff_items
 
@@ -213,12 +212,12 @@ def test_education_choice_picks_an_alternative():
 
 
 def test_linkedin_import_is_not_saved_until_committed(client):
-    before = config.RESUME_PATH.read_text(encoding="utf-8")
+    before = resume_text()
     upload = make_zip({"Profile.csv": PROFILE, "Positions.csv": POSITIONS, "Skills.csv": "Name\nSQL\nKubernetes\n"})
     response = client.post("/api/resume/import/linkedin", files={"file": ("export.zip", upload, "application/zip")})
     assert response.status_code == 200, response.text
     result = response.json()
-    assert config.RESUME_PATH.read_text(encoding="utf-8") == before
+    assert resume_text() == before
     assert {i["status"] for i in result["items"]} >= {"new", "conflict"}
     assert "Kubernetes" in result["skills_pool"] and "SQL" not in [s for s in result["skills_pool"] if s == "SQL (Advanced)"]
 
@@ -228,7 +227,7 @@ def test_linkedin_import_is_not_saved_until_committed(client):
         "skills": {"devops_and_orchestration": ["Kubernetes"]},
     })
     assert commit.status_code == 200, commit.text
-    saved = yaml.safe_load(config.RESUME_PATH.read_text(encoding="utf-8"))
+    saved = yaml.safe_load(resume_text())
     companies = [e["company"] for e in saved["experience"]]
     assert "Acme NV" in companies and "Estée Lauder Companies" in companies
     assert "Kubernetes" in saved["core_skills"]["devops_and_orchestration"]
@@ -261,17 +260,17 @@ class ResumeJsonGroq(FakeGroq):
             "message": type("M", (), {"content": json.dumps(payload)})})]})
 
 
-def test_resume_file_import_into_an_empty_profile(client, monkeypatch, project_root):
+def test_resume_file_import_into_an_empty_profile(client, monkeypatch):
     import tailor
 
-    (project_root / "resume_data.yaml").unlink()
+    set_resume_text("")
     payload = {"personal_info": {"full_name": "Grace Hopper", "email": "grace@example.com"},
                "core_skills": {"languages_and_tools": ["COBOL"]},
                "experience": [{"company": "Navy", "role": "Engineer", "dates": "1943 - 1986", "bullets": ["Compilers"]},
                               {"company": "", "role": "Ghost"}],
                "education": {"degree": "PhD", "institution": "Yale"}, "languages": ["English: native"],
                "low_confidence": ["experience.0.dates", "personal_info.phone"]}
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
+    set_secret("GROQ_API_KEY", "gsk_test")
     monkeypatch.setattr(tailor, "get_client", lambda: ResumeJsonGroq(payload))
     upload = make_docx(["Grace Hopper", "grace@example.com"] + ["Lots of experience text here."] * 20)
     response = client.post("/api/resume/import", files={"file": ("cv.docx", upload)})
@@ -286,7 +285,7 @@ def test_resume_file_import_into_an_empty_profile(client, monkeypatch, project_r
     commit = client.post("/api/resume/import/commit", json={"draft": result["draft"], "decisions": {},
                                                              "skills": {"languages_and_tools": ["COBOL"]}})
     assert commit.status_code == 200, commit.text
-    saved = yaml.safe_load(config.RESUME_PATH.read_text(encoding="utf-8"))
+    saved = yaml.safe_load(resume_text())
     assert saved["personal_info"]["full_name"] == "Grace Hopper"
     assert saved["experience"][0]["company"] == "Navy" and saved["core_skills"] == {"languages_and_tools": ["COBOL"]}
 

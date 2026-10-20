@@ -1,18 +1,20 @@
 import type { RunEvent, RunStep, StepStatus } from "@/lib/types";
 
 export const STEPS: { step: string; label: string }[] = [
-  { step: "init_db", label: "Init DB" },
+  { step: "scrape", label: "Web scraping" },
+  { step: "boards", label: "Job boards" },
   { step: "adzuna", label: "Adzuna" },
-  { step: "arbeitnow", label: "Arbeitnow" },
-  { step: "gmail", label: "Gmail" },
   { step: "filter", label: "Filter" },
   { step: "tailoring", label: "Tailoring" },
   { step: "report", label: "Report" },
 ];
 
+/** Steps that search for jobs; the dashboard shows their "new" counts. */
+export const SOURCE_STEPS = ["scrape", "boards", "adzuna"];
+
 const FINAL: StepStatus[] = ["succeeded", "warning", "failed", "skipped"];
 
-/** Collapse a run's event stream into one state per step (mirrors api/services/runs.step_summary). */
+/** Collapse a run's event stream into one state per step. */
 export function reduceSteps(events: RunEvent[]): RunStep[] {
   const steps = new Map<string, RunStep>(
     STEPS.map(({ step, label }) => [

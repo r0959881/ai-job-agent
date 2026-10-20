@@ -1,7 +1,6 @@
-"""Health of the external services: Groq, Adzuna, Gmail and SMTP alerts."""
+"""Health of the services a user's runs depend on: Groq (their key) and Adzuna (optional keys)."""
 import agent_settings
 from api.services import secrets
-from config import CREDENTIALS_PATH, TOKEN_PATH
 
 
 def _health(status, message, action=None):
@@ -25,31 +24,5 @@ def adzuna_status():
     return _health("ok", "Adzuna keys set.")
 
 
-def gmail_status():
-    from gmail_parser import read_gmail_state
-
-    state = read_gmail_state()
-    if not CREDENTIALS_PATH.exists():
-        return _health("missing", "credentials.json is missing, so Gmail cannot be connected.", "/settings/integrations#gmail")
-    if not TOKEN_PATH.exists():
-        return _health("missing", "Gmail is not connected.", "/settings/integrations#gmail")
-    if state.get("status") == "reauth_required":
-        return _health("warning", "Google needs you to reconnect Gmail.", "/settings/integrations#gmail")
-    if state.get("status") == "error":
-        return _health("error", state.get("reason") or "The last Gmail check failed.", "/settings/integrations#gmail")
-    return _health("ok", "Gmail connected.")
-
-
-def smtp_status():
-    configured = all(secrets.get(k) for k in ("ALERT_EMAIL_FROM", "ALERT_EMAIL_PASS", "ALERT_EMAIL_TO"))
-    enabled = agent_settings.get("alerts").get("smtp_enabled")
-    if not enabled:
-        return _health("missing" if not configured else "warning", "Email alerts are off.", "/settings/integrations")
-    if not configured:
-        return _health("error", "Email alerts are on, but the Gmail address or app password is missing.",
-                       "/settings/integrations")
-    return _health("ok", "Email alerts on.")
-
-
 def status():
-    return {"groq": groq_status(), "adzuna": adzuna_status(), "gmail": gmail_status(), "smtp": smtp_status()}
+    return {"groq": groq_status(), "adzuna": adzuna_status()}

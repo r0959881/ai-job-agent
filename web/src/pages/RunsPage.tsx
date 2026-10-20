@@ -88,7 +88,7 @@ export default function RunsPage() {
         <EmptyState
           icon={History}
           title="No runs yet"
-          description="Start a run to search Adzuna, Arbeitnow and your Gmail alerts. It usually takes a few minutes."
+          description="Start a run to search job sites for your roles. It usually takes a few minutes; keep this tab open while it runs."
           action={
             <Button onClick={startRun}>
               <Play /> Start your first run

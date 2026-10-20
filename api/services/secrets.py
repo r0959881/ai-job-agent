@@ -1,29 +1,26 @@
-"""Write-only management of the .env secrets the agent uses.
+"""API keys, write-only: encrypted in the server database for web users, in .env for the local account.
 
-Values are never returned in full: reads give a masked hint only. Writes keep
-every other line of .env (comments, Telegram keys, ...) untouched and also
-update os.environ so the running server uses the new value immediately.
+Values are never returned in full: reads give a masked hint only. Writes to .env
+keep every other line untouched and update os.environ so they apply at once.
 """
 import os
 import re
 
+import user_scope
 from config import ENV_PATH, atomic_write_text
 
 MANAGED = {
     "GROQ_API_KEY": ("Groq API key", "groq"),
     "ADZUNA_APP_ID": ("Adzuna app ID", "adzuna"),
     "ADZUNA_APP_KEY": ("Adzuna app key", "adzuna"),
-    "ALERT_EMAIL_FROM": ("Alert sender (Gmail address)", "smtp"),
-    "ALERT_EMAIL_PASS": ("Gmail app password", "smtp"),
-    "ALERT_EMAIL_TO": ("Alert recipient", "smtp"),
 }
 PLACEHOLDER = re.compile(r"^your_|_here$")
 LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
 
 
 def get(key):
-    value = os.environ.get(key, "")
-    return "" if PLACEHOLDER.search(value or "") else value
+    value = user_scope.secret(key) or ""
+    return "" if PLACEHOLDER.search(value) else value
 
 
 def mask(value):
@@ -50,31 +47,42 @@ def _quote(value):
     return value
 
 
-def update(values):
-    """Set (non-empty string) or clear (None or "") managed keys."""
-    for key, value in values.items():
-        if key not in MANAGED:
-            raise KeyError(key)
-        if value and ("\n" in value or "\r" in value):
-            raise ValueError(f"{MANAGED[key][0]} cannot contain line breaks.")
+def _write_env(values):
     lines = ENV_PATH.read_text(encoding="utf-8").splitlines() if ENV_PATH.exists() else []
     pending = {key: (value or "").strip() for key, value in values.items()}
     output = []
     for line in lines:
         match = LINE.match(line)
         if match and match.group(1) in pending:
-            key = match.group(1)
-            value = pending.pop(key)
+            value = pending.pop(match.group(1))
             if value:
-                output.append(f"{key}={_quote(value)}")
+                output.append(f"{match.group(1)}={_quote(value)}")
             continue
         output.append(line)
-    for key, value in pending.items():
-        if value:
-            output.append(f"{key}={_quote(value)}")
+    output += [f"{key}={_quote(value)}" for key, value in pending.items() if value]
     atomic_write_text(ENV_PATH, "\n".join(output) + "\n")
     for key, value in values.items():
         if value and value.strip():
             os.environ[key] = value.strip()
         else:
             os.environ.pop(key, None)
+
+
+def update(values):
+    """Set (non-empty string) or clear (None or "") keys: the signed-in user's, or .env for the local account."""
+    from api import store
+
+    scope = user_scope.current()
+    for key, value in values.items():
+        if key not in MANAGED:
+            raise KeyError(key)
+        if value and ("\n" in value or "\r" in value):
+            raise ValueError(f"{MANAGED[key][0]} cannot contain line breaks.")
+        if value and len(value) > 500:
+            raise ValueError(f"{MANAGED[key][0]} is too long.")
+    if scope is None:
+        _write_env(values)
+        return
+    for key, value in values.items():
+        store.set_secret(scope.user_id, key, (value or "").strip())
+        scope.forget(f"secret:{key}")

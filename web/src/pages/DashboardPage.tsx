@@ -19,8 +19,9 @@ import { EmptyState, ErrorState, SkeletonCards, SkeletonRows } from "@/component
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/primitives";
 import { Tooltip } from "@/components/ui/overlays";
-import { GmailAttentionBanner } from "@/features/integrations/GmailAttentionBanner";
+import { FolderNotice } from "@/features/settings/StorageCard";
 import { runSummaryText } from "@/features/runs/RunNotifier";
+import { SOURCE_STEPS } from "@/features/runs/runSteps";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/queries";
 import type { HealthLevel, IntegrationHealth, ResumeResponse, Stats } from "@/lib/types";
@@ -155,7 +156,7 @@ export default function DashboardPage() {
           </Button>
         }
       />
-      <GmailAttentionBanner />
+      <FolderNotice />
       {stats.isError && <ErrorState error={stats.error} onRetry={() => stats.refetch()} />}
       {stats.isPending ? (
         <SkeletonCards />
@@ -171,7 +172,7 @@ export default function DashboardPage() {
           <StatTile
             label="CVs generated"
             value={data.cvs_generated}
-            hint="Tailored CVs in the output folder"
+            hint="Tailored CVs in your documents folder"
             icon={FileText}
             to="/documents?kind=cv"
           />
@@ -225,9 +226,9 @@ export default function DashboardPage() {
                   {lastRun.duration_seconds != null && ` · ${formatDuration(lastRun.duration_seconds)}`}
                 </p>
                 <p className="text-body">{runSummaryText(lastRun)}</p>
-                <ul className="grid grid-cols-3 gap-2 text-body tabular">
+                <ul className="grid grid-cols-2 gap-2 text-body tabular sm:grid-cols-4">
                   {(lastRun.steps ?? [])
-                    .filter((s) => ["adzuna", "arbeitnow", "gmail"].includes(s.step))
+                    .filter((s) => SOURCE_STEPS.includes(s.step))
                     .map((s) => (
                       <li key={s.step} className="rounded-md border p-2">
                         <p className="text-caption text-muted-foreground">{s.label}</p>
@@ -298,8 +299,6 @@ export default function DashboardPage() {
               <div className="flex flex-wrap gap-2">
                 <HealthChip name="Groq" health={data.integrations.groq} />
                 <HealthChip name="Adzuna" health={data.integrations.adzuna} />
-                <HealthChip name="Gmail" health={data.integrations.gmail} />
-                <HealthChip name="Email alerts" health={data.integrations.smtp} />
               </div>
             ) : (
               <SkeletonRows rows={2} />

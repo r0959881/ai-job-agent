@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 import agent_settings
+import job_sources
+import regions
+import user_scope
 from agent_log import check_cancelled, log, step
 from config import ENV_PATH
 from database import init_db, transaction
@@ -42,16 +45,16 @@ ALLOWED_LOCATIONS = agent_settings.DEFAULTS["allowed_locations"]
 NON_BELGIAN_LOCATIONS = agent_settings.DEFAULTS["blocked_locations"]
 
 
-def get_target_roles():
-    return agent_settings.get("target_roles")
+def get_target_roles(settings=None):
+    return (settings or agent_settings.load())["target_roles"]
 
 
-def classify_target_role(title, description=""):
+def classify_target_role(title, description="", settings=None):
     """Return the closest requested role family for a job listing."""
     text = clean_text(f"{title} {description}")
     role_scores = {
         role: sum(keyword in text for keyword in keywords)
-        for role, keywords in get_target_roles().items()
+        for role, keywords in get_target_roles(settings).items()
     }
     if not role_scores:
         return None
@@ -101,47 +104,58 @@ def is_relevant_job(title, description, location="", allow_non_entry=False, sett
         allow_non_entry or has_entry_signal or has_allowed_experience
     )
 
-def save_jobs_to_db(jobs, source_type):
+def normalise_job(item, source_type, settings, discovered_at=None):
+    """A source item as a job row, or None when the relevance gate rejects it."""
+    title = item.get("title", "") or ""
+    company = item.get("company_name", "") or item.get("company", "") or "Unknown"
+    if isinstance(company, dict):
+        company = company.get("display_name", "Unknown")
+    description = item.get("description", "") or ""
+    location = item.get("location", "") or ""
+
+    trusted_alert_source = source_type in set(settings["trusted_alert_sources"])
+    if not title or not is_relevant_job(title, description, location, allow_non_entry=trusted_alert_source,
+                                        settings=settings):
+        return None
+    company_data = item.get("company", {})
+    if isinstance(company_data, dict):
+        company = item.get("company_name", "") or company_data.get("display_name", "Unknown")
+    return {
+        "id": generate_job_id(company, title), "title": title, "company": company, "location": location,
+        "url": item.get("url", "") or item.get("redirect_url", "") or "", "source": source_type,
+        "description": description,
+        "category": item.get("category", "") or item.get("category_name", "") or "",
+        "contract_type": item.get("contract_type", "") or item.get("contract", "") or "",
+        "salary_min": item.get("salary_min"), "salary_max": item.get("salary_max"),
+        "salary_currency": item.get("salary_currency", "") or "",
+        "posted_at": job_sources.to_iso(item.get("created") or item.get("date")),
+        "discovered_at": discovered_at or datetime.now(timezone.utc).isoformat(),
+        # The title decides; the description only breaks the tie when the title names no role.
+        "role_family": (classify_target_role(title, settings=settings)
+                        or classify_target_role(title, description, settings=settings) or ""),
+    }
+
+
+def save_jobs_to_db(jobs, source_type, settings=None):
     new_jobs_count = 0
     duplicate_count = 0
     filtered_count = 0
     discovered_at = datetime.now(timezone.utc).isoformat()
-    settings = agent_settings.load()
+    settings = settings or agent_settings.load()
 
     # Both API discovery and Gmail ingestion use this same storage boundary.
     init_db()
     with transaction() as conn:
         for item in jobs:
-            title = item.get("title", "") or ""
-            company = item.get("company_name", "") or item.get("company", "") or "Unknown"
-            if isinstance(company, dict):
-                company = company.get("display_name", "Unknown")
-            description = item.get("description", "") or ""
-            location = item.get("location", "") or ""
-
-            trusted_alert_source = source_type in set(settings["trusted_alert_sources"])
-            if not title or not is_relevant_job(
-                title,
-                description,
-                location,
-                allow_non_entry=trusted_alert_source,
-                settings=settings,
-            ):
+            row = normalise_job(item, source_type, settings, discovered_at)
+            if row is None:
                 filtered_count += 1
                 continue
-
-            job_id = generate_job_id(company, title)
-            job_url = item.get("url", "") or item.get("redirect_url", "") or ""
-            company_data = item.get("company", {})
-            if isinstance(company_data, dict):
-                company = item.get("company_name", "") or company_data.get("display_name", "Unknown")
-            category = item.get("category", "") or item.get("category_name", "") or ""
-            contract_type = item.get("contract_type", "") or item.get("contract", "") or ""
-            salary_min = item.get("salary_min")
-            salary_max = item.get("salary_max")
-            salary_currency = item.get("salary_currency", "") or ""
-            posted_at = item.get("created", "") or item.get("date", "") or ""
-            role_family = classify_target_role(title) or ""
+            job_id, title, company, location, job_url = (row["id"], row["title"], row["company"], row["location"],
+                                                         row["url"])
+            description, category, contract_type = row["description"], row["category"], row["contract_type"]
+            salary_min, salary_max, salary_currency = row["salary_min"], row["salary_max"], row["salary_currency"]
+            posted_at, role_family = row["posted_at"], row["role_family"]
 
             source_data = json.dumps(item, default=str)
             existing_job = conn.execute(
@@ -197,123 +211,200 @@ def add_counts(total, counts):
     return total
 
 
-def fetch_arbeitnow_jobs(keyword="data"):
-    """Fetch Arbeitnow listings and apply the same Belgian eligibility gate."""
-    url = "https://www.arbeitnow.com/api/job-board-api"
-    log(f"🔍 Searching Arbeitnow for '{keyword}' jobs...")
-    try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        jobs = response.json().get("data", [])
-        return save_jobs_to_db(jobs, "Arbeitnow")
-    except (requests.RequestException, ValueError) as error:
-        log(f"❌ Arbeitnow error: {error}", level="error")
-        return None
+def run_scope(settings, region_ids=None, roles=None, window_hours=None):
+    """Settings and search context for one run.
+
+    Regions picked for the run replace the allowed locations, so only jobs in
+    those places are kept. Without a pick, the default regions from the settings
+    are added to the allowed locations. Picked roles narrow the role families;
+    a role with no keywords or search phrases is searched by its own name.
+    """
+    settings = dict(settings)
+    explicit_regions = region_ids is not None
+    region_ids = list(region_ids) if explicit_regions else list(settings.get("regions") or [])
+    if roles is not None:
+        settings["target_roles"] = {
+            name: settings["target_roles"].get(name) or [name.lower()] for name in roles
+        }
+    role_queries = {
+        name: settings["search_queries"].get(name) or [name] for name in settings["target_roles"]
+    }
+    if explicit_regions:
+        allowed = regions.markers(region_ids)
+    else:
+        allowed = list(dict.fromkeys(settings["allowed_locations"] + regions.markers(region_ids)))
+    settings["allowed_locations"] = allowed
+    settings["blocked_locations"] = [place for place in settings["blocked_locations"] if place not in allowed]
+    context = job_sources.Context(
+        regions=regions.resolve(region_ids), role_queries=role_queries,
+        window_hours=int(window_hours or settings["time_window_hours"]), settings=settings,
+    )
+    return settings, context
 
 
 def adzuna_credentials():
-    app_id = os.getenv("ADZUNA_APP_ID")
-    app_key = os.getenv("ADZUNA_APP_KEY")
+    app_id = user_scope.secret("ADZUNA_APP_ID")
+    app_key = user_scope.secret("ADZUNA_APP_KEY")
     if not app_id or not app_key or "your_app" in app_id:
         return None
     return app_id, app_key
 
 
-def fetch_adzuna_belgium(keyword="data engineer", location="belgium", page=1):
-    """Fetches jobs specifically from Adzuna Belgium API."""
-    credentials = adzuna_credentials()
-    if not credentials:
-        log("⚠️ Adzuna credentials missing in .env (skipping Adzuna)", level="warning")
-        return None
-    app_id, app_key = credentials
-    adzuna = agent_settings.get("adzuna")
-
-    url = f"https://api.adzuna.com/v1/api/jobs/{adzuna['country']}/search/{page}"
+def fetch_adzuna(keyword, region, page=1, settings=None):
+    """One Adzuna search inside a region's country."""
+    app_id, app_key = adzuna_credentials()
+    adzuna = (settings or agent_settings.load())["adzuna"]
+    url = f"https://api.adzuna.com/v1/api/jobs/{region['adzuna']}/search/{page}"
     params = {
         "app_id": app_id,
         "app_key": app_key,
         "results_per_page": adzuna["results_per_page"],
         "what": keyword,
-        "where": location
     }
-    log(f"🔍 Searching Adzuna (BE) for '{keyword}' near '{location}'...")
-    try:
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        payload = response.json()
-        results = payload.get("results", [])
-        if not results:
-            log(f"ℹ️ Adzuna returned no listings for '{keyword}' in Belgium.")
-        formatted_jobs = [
-            {
-                "title": result.get("title", ""),
-                "company_name": result.get("company", {}).get("display_name", "Unknown"),
-                "description": result.get("description", ""),
-                "location": result.get("location", {}).get("display_name", "Belgium"),
-                "url": result.get("redirect_url", ""),
-            }
-            for result in results
-        ]
-        return save_jobs_to_db(formatted_jobs, "Adzuna Belgium")
-    except (requests.RequestException, ValueError) as error:
-        log(f"❌ Adzuna BE error: {error}", level="error")
-        return None
+    response = requests.get(url, params=params, timeout=30)
+    response.raise_for_status()
+    results = response.json().get("results", [])
+    if not results:
+        log(f"ℹ️ Adzuna returned no listings for '{keyword}' in {region['label']}.")
+    return [
+        {
+            "title": result.get("title", ""),
+            "company_name": result.get("company", {}).get("display_name", "Unknown"),
+            "description": result.get("description", ""),
+            "location": job_sources.in_region(result.get("location", {}).get("display_name", ""), region),
+            "url": result.get("redirect_url", ""),
+            "created": result.get("created", ""),
+            "salary_min": result.get("salary_min"),
+            "salary_max": result.get("salary_max"),
+            "contract_type": result.get("contract_type", "") or "",
+            "category": (result.get("category") or {}).get("label", ""),
+        }
+        for result in results
+    ]
 
 
-def run_adzuna():
-    settings = agent_settings.load()
+def adzuna_searches(ctx):
+    return [
+        job_sources.Search("adzuna", f"Adzuna {region['label']}", f"{region['label']} · {keyword}",
+                           lambda keyword=keyword, region=region: fetch_adzuna(keyword, region, settings=ctx.settings),
+                           region)
+        for region in job_sources.covered_regions("adzuna", ctx.regions)
+        for keyword in ctx.queries()
+    ]
+
+
+# A source that fails this many searches in a row is probably blocking us; skip the rest.
+MAX_CONSECUTIVE_FAILURES = 2
+
+
+def run_searches(step_name, searches, settings, ctx):
+    """Run searches one by one with progress events; returns the summed counts."""
     totals = _empty_counts()
-    if not adzuna_credentials():
-        step("adzuna", "skipped", "Adzuna credentials are missing in .env, so Adzuna was skipped.")
-        for queries in settings["search_queries"].values():
-            for _keyword in queries:
-                fetch_adzuna_belgium()  # Prints the same warning per query as before.
-        return totals
-    step("adzuna", "started", "Searching Adzuna")
+    per_source = {}
+    failures = {}
     errors = 0
-    queries = [kw for queries in settings["search_queries"].values() for kw in queries]
-    for index, keyword in enumerate(queries, start=1):
+    gave_up = set()
+    for index, search in enumerate(searches, start=1):
         check_cancelled()
-        counts = fetch_adzuna_belgium(keyword=keyword, location=settings["adzuna"]["location"])
-        errors += counts is None
-        add_counts(totals, counts)
-        step("adzuna", "progress", f"Query {index} of {len(queries)}", {"done": index, "total": len(queries), **totals})
-    status = "warning" if errors else "succeeded"
-    step("adzuna", status, f"{totals['new']} new, {totals['duplicates']} already known, {totals['filtered']} filtered"
-         + (f", {errors} queries failed" if errors else ""), totals)
+        counts = per_source.setdefault(search.name, _empty_counts())
+        if search.source in gave_up:
+            errors += 1
+        else:
+            log(f"🔍 {search.name}: {search.label}")
+            try:
+                items = search.fetch()
+            except Exception as error:  # one broken source must not stop the run
+                errors += 1
+                failures[search.source] = failures.get(search.source, 0) + 1
+                log(f"❌ {search.name} ({search.label}): {type(error).__name__}: {str(error)[:200]}", level="error")
+                if failures[search.source] >= MAX_CONSECUTIVE_FAILURES:
+                    gave_up.add(search.source)
+                    log(f"⚠️ {search.name} failed {MAX_CONSECUTIVE_FAILURES} times in a row; "
+                        "skipping its remaining searches in this run.", level="warning")
+            else:
+                failures[search.source] = 0
+                fresh = [item for item in items if job_sources.is_fresh(item, ctx.cutoff)]
+                saved = save_jobs_to_db(fresh, search.name, settings)
+                saved["discovered"] += len(items) - len(fresh)
+                saved["filtered"] += len(items) - len(fresh)
+                add_counts(counts, saved)
+                add_counts(totals, saved)
+        step(step_name, "progress", f"{search.name} · {search.label} ({index} of {len(searches)})",
+             {"done": index, "total": len(searches), **totals, "per_source": per_source})
+    summary = " · ".join(f"{name} {counts['new']} new" for name, counts in per_source.items())
+    message = f"{totals['new']} new, {totals['duplicates']} already known, {totals['filtered']} filtered"
+    if summary:
+        message += f" ({summary})"
+    if errors:
+        message += f". {errors} of {len(searches)} searches failed or were skipped"
+    step(step_name, "warning" if errors else "succeeded", message,
+         {**totals, "per_source": per_source, "errors": errors})
     return totals
 
 
-def run_arbeitnow():
-    step("arbeitnow", "started", "Fetching Arbeitnow")
-    counts = fetch_arbeitnow_jobs()
-    if counts is None:
-        step("arbeitnow", "warning", "Arbeitnow could not be reached.", _empty_counts())
+STEP_SOURCES = {
+    "scrape": ("Web scraping", job_sources.SCRAPERS),
+    "boards": ("Job boards", job_sources.BOARDS),
+}
+
+
+def _run_group(step_name, sources, settings, ctx):
+    title, members = STEP_SOURCES[step_name]
+    chosen = [key for key in members if key in sources]
+    if not chosen:
+        step(step_name, "skipped", f"{title}: no sources selected for this run.")
         return _empty_counts()
-    step("arbeitnow", "succeeded", f"{counts['new']} new, {counts['filtered']} filtered", counts)
-    return counts
+    searches = [search for key in chosen for search in job_sources.plan(key, ctx)]
+    if not searches:
+        reasons = [
+            f"{job_sources.SOURCES[key]['label']}: no companies followed yet (Settings → Search)"
+            if key == "company_boards" else f"{job_sources.SOURCES[key]['label']}: not available in the selected regions"
+            for key in chosen
+        ]
+        step(step_name, "skipped", f"{title} skipped. " + "; ".join(reasons) + ".")
+        return _empty_counts()
+    labels = ", ".join(dict.fromkeys(search.name for search in searches))
+    step(step_name, "started", f"{len(searches)} searches on {labels}", {"done": 0, "total": len(searches)})
+    return run_searches(step_name, searches, settings, ctx)
 
 
-def run_discovery(sources=None):
-    """Search the API sources. `sources` limits which run (default: all enabled in settings)."""
+def run_adzuna(settings, ctx):
+    if not adzuna_credentials():
+        log("⚠️ Adzuna credentials missing in .env (skipping Adzuna)", level="warning")
+        step("adzuna", "skipped", "Adzuna credentials are missing in .env, so Adzuna was skipped.")
+        return _empty_counts()
+    searches = adzuna_searches(ctx)
+    if not searches:
+        step("adzuna", "skipped", "Adzuna does not cover the selected regions.")
+        return _empty_counts()
+    step("adzuna", "started", "Searching Adzuna", {"done": 0, "total": len(searches)})
+    return run_searches("adzuna", searches, settings, ctx)
+
+
+DISCOVERY_SOURCES = set(job_sources.SOURCE_KEYS) - {"gmail"}
+
+
+def run_discovery(sources=None, settings=None, ctx=None):
+    """Search every non-email source. `sources` limits which run (default: all enabled in settings)."""
     init_db()
-    log("🇧🇪 Executing Targeted Belgian Job Discovery...\n")
-    enabled = agent_settings.get("sources")
-    sources = set(sources) if sources is not None else {name for name, on in enabled.items() if on}
+    if settings is None or ctx is None:
+        settings, ctx = run_scope(agent_settings.load())
+    enabled = {name for name, on in settings["sources"].items() if on}
+    sources = set(sources) if sources is not None else enabled
+    region_names = ", ".join(region["label"] for region in ctx.regions) or "no regions"
+    log(f"🌍 Searching for jobs in {region_names} for {len(ctx.role_queries)} role(s)...\n")
     totals = _empty_counts()
 
-    # Search every requested role family; the relevance gate below keeps only
-    # Belgian, early-career listings that match the profile.
+    add_counts(totals, _run_group("scrape", sources, settings, ctx))
+    check_cancelled()
+    add_counts(totals, _run_group("boards", sources, settings, ctx))
+    check_cancelled()
     if "adzuna" in sources:
-        add_counts(totals, run_adzuna())
+        add_counts(totals, run_adzuna(settings, ctx))
     else:
         step("adzuna", "skipped", "Adzuna is turned off for this run.")
-    check_cancelled()
-    if "arbeitnow" in sources:
-        add_counts(totals, run_arbeitnow())
-    else:
-        step("arbeitnow", "skipped", "Arbeitnow is turned off for this run.")
     return totals
+
 
 if __name__ == "__main__":
     run_discovery()

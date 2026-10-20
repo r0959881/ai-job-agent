@@ -34,7 +34,7 @@ role_profiles:
 
 standard_answers:
   work_authorization: "Authorized to work in Belgium / EU"
-  sponsorship_required: "No"
+  sponsorship_required: "Yes"
   notice_period: "Immediate / 2 weeks"
   salary_expectation: "Market standard / Competitive"
 

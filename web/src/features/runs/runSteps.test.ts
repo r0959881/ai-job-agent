@@ -19,27 +19,19 @@ const ev = (
 describe("reduceSteps", () => {
   it("tracks each step's status, progress and counts", () => {
     const events = [
-      ev("init_db", "started"),
-      ev("init_db", "succeeded", "Database ready"),
-      ev("adzuna", "skipped", "Adzuna credentials are missing"),
+      ev("scrape", "started", "4 searches on LinkedIn", { done: 0, total: 4 }),
+      ev("scrape", "succeeded", "3 new"),
+      ev("adzuna", "skipped", "Adzuna keys are missing"),
       ev("tailoring", "started", "Tailoring 3 CV(s)", { done: 0, total: 3 }),
       ev("tailoring", "log", "🤖 Tailoring CV for: X", { level: "info" }),
       ev("tailoring", "progress", "Tailored 1 of 3", { done: 1, total: 3 }),
     ];
     const steps = reduceSteps(events);
     const byName = Object.fromEntries(steps.map((s) => [s.step, s]));
-    expect(steps.map((s) => s.step)).toEqual([
-      "init_db",
-      "adzuna",
-      "arbeitnow",
-      "gmail",
-      "filter",
-      "tailoring",
-      "report",
-    ]);
-    expect(byName.init_db.status).toBe("succeeded");
+    expect(steps.map((s) => s.step)).toEqual(["scrape", "boards", "adzuna", "filter", "tailoring", "report"]);
+    expect(byName.scrape.status).toBe("succeeded");
     expect(byName.adzuna.status).toBe("skipped");
-    expect(byName.arbeitnow.status).toBe("pending");
+    expect(byName.boards.status).toBe("pending");
     expect(byName.tailoring.status).toBe("running");
     expect(byName.tailoring.data).toMatchObject({ done: 1, total: 3 });
   });
@@ -55,12 +47,12 @@ describe("toLogLines", () => {
     const lines = toLogLines([
       ev("adzuna", "log", "🔍 Searching", { level: "info" }),
       ev("adzuna", "progress", "Query 1 of 2"),
-      ev("gmail", "warning", "Gmail skipped"),
+      ev("boards", "warning", "VDAB skipped"),
       ev("tailoring", "log", "❌ Error", { level: "error" }),
     ]);
     expect(lines.map((l) => [l.level, l.text])).toEqual([
       ["info", "🔍 Searching"],
-      ["warning", "Gmail skipped"],
+      ["warning", "VDAB skipped"],
       ["error", "❌ Error"],
     ]);
   });

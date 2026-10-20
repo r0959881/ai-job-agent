@@ -1,184 +1,180 @@
-"""Generated documents: list, preview, download, open locally, regenerate and delete."""
-import os
-import subprocess
-import sys
+"""Documents for the web app: tailored CVs, cover letters, the Excel report and previews.
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+Every file is built in memory from the user's resume and returned to the
+browser, which saves it in the folder the user picked. Nothing is written on
+the server, so generated documents never take up space there.
+"""
+import base64
+import html
+import io
+import re
+from typing import Any
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from api import db
-from api.paths import safe_output_path
-from api.services.documents import backfill_documents, document_row
-from api.services.preview import docx_to_html, text_preview
-from config import OUTPUT_DIR, long_path
+from api.services.preview import sanitise
+from config import load_resume_file
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
-MEDIA_TYPES = {
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".txt": "text/plain; charset=utf-8",
-    ".pdf": "application/pdf",
-}
-
-BASE_QUERY = """SELECT d.*, j.title AS job_title, j.company AS job_company
-FROM documents d LEFT JOIN jobs j ON j.id = d.job_id"""
+DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+MAX_PREVIEW = 10 * 1024 * 1024
 
 
-def _get(document_id):
-    row = db.one_row(f"{BASE_QUERY} WHERE d.id = ?", (document_id,))
-    if not row:
-        raise HTTPException(404, "That document no longer exists.")
-    return row
+class JobIn(BaseModel):
+    id: str = ""
+    title: str
+    company: str = ""
+    location: str = ""
+    url: str = ""
+    source: str = ""
+    description: str = ""
+    role_family: str = ""
 
 
-@router.get("/documents")
-def list_documents(kind: str | None = None, role_family: str | None = None, q: str | None = None,
-                   job_id: str | None = None, orphans: bool = False, rescan: bool = False):
-    if rescan:
-        backfill_documents()
-    clauses, params = [], []
-    if kind:
-        clauses.append("d.kind = ?")
-        params.append(kind)
-    if role_family:
-        clauses.append("d.role_family = ?")
-        params.append(role_family)
-    if job_id:
-        clauses.append("d.job_id = ?")
-        params.append(job_id)
-    if orphans:
-        clauses.append("(d.job_id IS NULL OR j.id IS NULL) AND d.kind != 'report'")
-    if q:
-        clauses.append("(d.path LIKE ? OR j.title LIKE ? OR j.company LIKE ?)")
-        params += [f"%{q}%"] * 3
-    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-    rows = db.all_rows(f"{BASE_QUERY}{where} ORDER BY d.created_at DESC, d.id DESC", tuple(params))
-    return {"items": [document_row(row) for row in rows]}
+class TailorBody(BaseModel):
+    job: JobIn
+    summary: str | None = None
+    bullets: list[str] | None = None
+    role_family: str | None = None
 
 
-@router.post("/documents/rescan")
-def rescan():
-    return backfill_documents()
+class CoverLetterBody(BaseModel):
+    job: JobIn
+    company: str | None = None
 
 
-@router.get("/documents/{document_id}/download")
-def download(document_id: int):
-    row = _get(document_id)
-    path = safe_output_path(row["path"])
-    if not path.exists():
-        raise HTTPException(404, "The file was deleted from the output folder.")
-    return FileResponse(long_path(path), filename=path.name,
-                        media_type=MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream"))
+class ReportBody(BaseModel):
+    jobs: list[dict[str, Any]]
+    excluded: list[dict[str, Any]] = []
+    name: str = ""
 
 
-@router.get("/documents/{document_id}/preview")
-def preview(document_id: int):
-    row = _get(document_id)
-    path = safe_output_path(row["path"])
-    if not path.exists():
-        raise HTTPException(404, "The file was deleted from the output folder.")
-    suffix = path.suffix.lower()
-    if suffix == ".docx":
-        return {"html": docx_to_html(path), "kind": row["kind"]}
-    if suffix == ".txt":
-        return {"html": text_preview(path), "kind": row["kind"]}
-    raise HTTPException(415, "Only Word documents and text files can be previewed. Download this file instead.")
+def file_payload(name, mime, data: bytes):
+    return {"name": name, "mime": mime, "size": len(data), "data": base64.b64encode(data).decode("ascii")}
 
 
-@router.post("/documents/{document_id}/open")
-def open_locally(document_id: int):
-    """Open the file in its desktop app (Word/Excel). Browsers block file:// links from web pages."""
-    row = _get(document_id)
-    path = safe_output_path(row["path"])
-    if not path.exists():
-        raise HTTPException(404, "The file was deleted from the output folder.")
-    _open_path(path)
-    return {"opened": path.name}
+def _resume():
+    resume = load_resume_file()
+    if not resume or not any(resume.get(key) for key in ("experience", "projects", "core_skills")):
+        raise HTTPException(400, "Your profile is empty. Fill it in under Profile (or import a CV) first.")
+    return resume
 
 
-def _open_path(path):
-    if sys.platform.startswith("win"):
-        os.startfile(str(path))  # type: ignore[attr-defined]  # noqa: S606
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
-    else:
-        subprocess.Popen(["xdg-open", str(path)])
+def _groq_error(exc):
+    from tailor import GroqConfigError, describe_error
+
+    if isinstance(exc, GroqConfigError):
+        return HTTPException(400, str(exc).removeprefix("❌ ").strip())
+    return HTTPException(502, f"Tailoring failed: {describe_error(exc)}. Try again in a minute.")
 
 
-def delete_document_file(row):
-    path = safe_output_path(row["path"])
+def _role_family(job: JobIn):
+    from discovery import classify_target_role
+
+    return job.role_family or classify_target_role(job.title, job.description) or ""
+
+
+@router.post("/tailor/preview")
+def tailor_preview(body: TailorBody):
+    """The tailored summary and bullets, for the user to review before the CV is written."""
+    from tailor import tailored_content_for
+
+    resume = _resume()
+    job = body.job.model_dump() | {"role_family": _role_family(body.job)}
     try:
-        os.remove(long_path(path))
-    except FileNotFoundError:
-        pass
-    except PermissionError as exc:
-        raise HTTPException(409, f"{path.name} is open in another program. Close it and try again.") from exc
-    statements: list[tuple[str, tuple]] = [("DELETE FROM documents WHERE id = ?", (row["id"],))]
-    if row.get("job_id"):
-        column = "cv_path" if row["kind"] == "cv" else "cover_letter_path" if row["kind"] == "cover_letter" else None
-        if column:
-            statements.append((f"UPDATE jobs SET {column} = '' WHERE id = ? AND {column} = ?", (row["job_id"], row["path"])))
-            if column == "cv_path":
-                statements.append(("UPDATE jobs SET status = 'new' WHERE id = ? AND status = 'processed' AND cv_path = ''",
-                                   (row["job_id"],)))
-    db.execute_many(statements)
+        content = tailored_content_for(job, resume=resume)
+    except Exception as exc:
+        raise _groq_error(exc) from exc
+    return {"summary": content["summary"], "bullets": content["bullets"], "role_family": content["role_family"]}
 
 
-@router.delete("/documents/{document_id}")
-def delete_document(document_id: int):
-    row = _get(document_id)
-    delete_document_file(row)
-    return {"deleted": row["path"]}
+@router.post("/tailor")
+def tailor(body: TailorBody):
+    """Write the tailored CV. Without summary and bullets they are generated first."""
+    from generate_doc import create_tailored_cv_docx, cv_file_stem
+    from tailor import tailored_content_for
 
-
-class BulkDelete(BaseModel):
-    ids: list[int]
-
-
-@router.post("/documents/bulk-delete")
-def bulk_delete(body: BulkDelete):
-    deleted, failed = [], []
-    for document_id in body.ids:
-        row = db.one_row(f"{BASE_QUERY} WHERE d.id = ?", (document_id,))
-        if not row:
-            continue
+    resume = _resume()
+    role_family = body.role_family if body.role_family is not None else _role_family(body.job)
+    summary, bullets = body.summary, body.bullets
+    if summary is None:
         try:
-            delete_document_file(row)
-            deleted.append(document_id)
-        except HTTPException as exc:
-            failed.append({"id": document_id, "reason": exc.detail})
-    return {"deleted": deleted, "failed": failed}
+            content = tailored_content_for(body.job.model_dump() | {"role_family": role_family}, resume=resume)
+        except Exception as exc:
+            raise _groq_error(exc) from exc
+        summary, bullets, role_family = content["summary"], content["bullets"], content["role_family"]
+    buffer = io.BytesIO()
+    create_tailored_cv_docx(body.job.company, body.job.title, summary, bullets or [], role_family or None,
+                            data=resume, output_path=buffer)
+    name = cv_file_stem((resume.get("personal_info") or {}).get("full_name"), body.job.company, body.job.title)
+    return {"summary": summary, "bullets": bullets or [], "role_family": role_family or "",
+            "file": file_payload(f"{name}.docx", DOCX, buffer.getvalue())}
 
 
-@router.post("/documents/{document_id}/regenerate")
-def regenerate(document_id: int):
-    row = _get(document_id)
-    if not row.get("job_id"):
-        if row["kind"] == "cover_letter" and row.get("role_family"):
-            from generate_cover_letter import create_cover_letter_docx
+@router.post("/cover-letter")
+def cover_letter(body: CoverLetterBody):
+    from generate_cover_letter import cover_letter_stem, create_cover_letter_docx
 
-            path = create_cover_letter_docx(row["role_family"])
-            backfill_documents()
-            return {"path": path}
-        raise HTTPException(400, "This file is not linked to a job, so there is nothing to regenerate it from.")
-    from api.services.jobs import generate_cover_letter_for_job, tailor_job
-
-    if row["kind"] == "cv":
-        return tailor_job(row["job_id"])
-    if row["kind"] == "cover_letter":
-        return generate_cover_letter_for_job(row["job_id"])
-    raise HTTPException(400, "Only CVs and cover letters can be regenerated.")
+    resume = _resume()
+    role_family = _role_family(body.job) or "General"
+    company = (body.company or body.job.company or "").strip()
+    if company.startswith("Partner ("):
+        company = ""
+    buffer = io.BytesIO()
+    create_cover_letter_docx(role_family, company=company or "the hiring team", job_title=body.job.title,
+                             data=resume, output_path=buffer)
+    name = cover_letter_stem((resume.get("personal_info") or {}).get("full_name"), role_family,
+                             company or "the hiring team", body.job.title)
+    return {"role_family": role_family, "file": file_payload(f"{name}.docx", DOCX, buffer.getvalue())}
 
 
-@router.get("/reports/latest")
-def latest_report():
-    row = db.one_row("SELECT * FROM documents WHERE kind = 'report' ORDER BY created_at DESC, id DESC LIMIT 1")
-    path = safe_output_path(row["path"]) if row else None
-    if not path or not path.exists():
-        reports = sorted(OUTPUT_DIR.glob("job_report_*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not reports:
-            raise HTTPException(404, "No Excel report yet. Run the agent to create one.")
-        path = reports[0]
-    return FileResponse(long_path(path), filename=path.name, media_type=MEDIA_TYPES[".xlsx"])
+@router.post("/report")
+def report(body: ReportBody):
+    """The Excel report of a run. Each job's cv_path is the CV's path relative to the report."""
+    from datetime import UTC, datetime
+
+    from report import export_jobs_to_excel
+
+    if len(body.jobs) + len(body.excluded) > 5000:
+        raise HTTPException(413, "A report can hold at most 5000 jobs.")
+    buffer = io.BytesIO()
+    export_jobs_to_excel([dict(job) for job in body.jobs], buffer, [dict(job) for job in body.excluded],
+                         relative_cv_links=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    name = re.sub(r"[^\w.-]", "_", body.name) if body.name else f"job_report_{stamp}.xlsx"
+    return {"file": file_payload(name if name.endswith(".xlsx") else f"{name}.xlsx", XLSX, buffer.getvalue())}
+
+
+@router.post("/documents/preview")
+async def preview(file: UploadFile = File(...)):
+    """Render a Word or text file from the user's folder as HTML (the file is not kept)."""
+    import mammoth
+
+    data = await file.read(MAX_PREVIEW + 1)
+    if len(data) > MAX_PREVIEW:
+        raise HTTPException(413, "The file is too large to preview.")
+    name = (file.filename or "").lower()
+    if name.endswith(".docx"):
+        try:
+            result = mammoth.convert_to_html(io.BytesIO(data))
+        except Exception as exc:
+            raise HTTPException(415, "This Word file could not be read.") from exc
+        return {"html": sanitise(result.value)}
+    if name.endswith(".txt"):
+        return {"html": f"<pre>{html.escape(data.decode('utf-8', errors='replace')[:200_000])}</pre>"}
+    raise HTTPException(415, "Only Word documents and text files can be previewed. Open this file instead.")
+
+
+@router.post("/jobs/insights")
+def insights(job: JobIn):
+    """Resume keywords found in the posting, role keywords it does not mention, and tips for its source."""
+    from api.services.job_insights import keyword_match, source_tips
+
+    data = job.model_dump()
+    data["role_family"] = _role_family(job)
+    matched, missing = keyword_match(data, load_resume_file() or {})
+    return {"matched_keywords": matched, "missing_keywords": missing, "tips": source_tips(data),
+            "role_family": data["role_family"]}

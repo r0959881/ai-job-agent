@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DocumentDownload } from "@/features/documents/DocumentDownload";
 import { ArrowLeft, FileSpreadsheet, FileText, Square } from "lucide-react";
 import * as React from "react";
 import { Link, useParams } from "react-router-dom";
@@ -188,12 +189,12 @@ export default function RunDetailPage() {
                           </Button>
                         )}
                         {doc.exists ? (
-                          <a
+                          <DocumentDownload
                             className={buttonVariants({ size: "sm", variant: "outline" })}
-                            href={`/api/documents/${doc.id}/download`}
+                            id={doc.id}
                           >
                             Download
-                          </a>
+                          </DocumentDownload>
                         ) : (
                           <span className="text-caption text-muted-foreground">File deleted</span>
                         )}

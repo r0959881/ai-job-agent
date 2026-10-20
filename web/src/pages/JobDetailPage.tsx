@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DocumentDownload } from "@/features/documents/DocumentDownload";
 import {
   ArrowLeft,
   Calendar,
@@ -201,12 +202,12 @@ export default function JobDetailPage() {
                       <Button size="sm" variant="ghost" onClick={() => setPreview(doc)}>
                         <Eye /> Preview
                       </Button>
-                      <a
+                      <DocumentDownload
                         className={buttonVariants({ size: "sm", variant: "outline" })}
-                        href={`/api/documents/${doc.id}/download`}
+                        id={doc.id}
                       >
                         <Download /> Download
-                      </a>
+                      </DocumentDownload>
                     </>
                   ) : (
                     <span className="text-caption text-muted-foreground">File deleted</span>

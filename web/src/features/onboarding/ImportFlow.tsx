@@ -88,7 +88,7 @@ export function SourcePicker({
         <Dropzone
           accept=".pdf,.docx"
           label="Drop your resume here or click to browse"
-          hint="PDF or DOCX, up to 50 MB"
+          hint="PDF or DOCX, up to 10 MB"
           disabled={busy}
           onFile={(file) => upload.mutate({ file, source: "file" })}
         />
@@ -135,13 +135,14 @@ export function SourcePicker({
         {onUseExisting && !only && (
           <Card className="flex flex-col gap-3 p-4">
             <h3 className="flex items-center gap-2 text-section">
-              <FileText className="size-5 text-primary" /> Use existing resume_data.yaml
+              <FileText className="size-5 text-primary" /> Keep my current profile
             </h3>
             <p className="flex-1 text-body text-muted-foreground">
-              Keep the profile that is already in resume_data.yaml. You can edit it any time under Profile.
+              Continue with the profile already saved in your account. You can fill it in or edit it any time
+              under Profile.
             </p>
             <Button variant="outline" onClick={onUseExisting}>
-              Use my existing file <ArrowRight />
+              Continue with my profile <ArrowRight />
             </Button>
           </Card>
         )}

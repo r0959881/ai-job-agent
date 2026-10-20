@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DocumentDownload } from "@/features/documents/DocumentDownload";
 import {
   Download,
   Eye,
@@ -93,7 +94,7 @@ export default function DocumentsPage() {
   const rescan = useMutation({
     mutationFn: () => api.post<{ added: number; removed: number; linked: number }>("/api/documents/rescan"),
     onSuccess: (result) => {
-      toast.success("Output folder rescanned", {
+      toast.success("Documents folder rescanned", {
         description: `${result.added} new, ${result.removed} removed, ${result.linked} linked to jobs.`,
       });
       queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -159,7 +160,7 @@ export default function DocumentsPage() {
     const ids = [...selected];
     const ok = await confirm({
       title: `Delete ${ids.length} file(s)?`,
-      description: "The files are permanently removed from the output folder.",
+      description: "The files are permanently removed from your documents folder.",
       confirmLabel: `Delete ${ids.length} file(s)`,
       destructive: true,
     });
@@ -179,13 +180,13 @@ export default function DocumentsPage() {
             <Eye />
           </Button>
         )}
-        <a
+        <DocumentDownload
           className={buttonVariants({ size: "icon-sm", variant: "ghost" })}
-          href={`/api/documents/${doc.id}/download`}
+          id={doc.id}
           aria-label={`Download ${doc.name}`}
         >
           <Download />
-        </a>
+        </DocumentDownload>
       </div>
     ) : (
       <Badge variant="warning">File missing</Badge>
@@ -195,7 +196,7 @@ export default function DocumentsPage() {
     <>
       <PageHeader
         title="Documents"
-        description="Every tailored CV, cover letter and Excel report in the output folder."
+        description="Every tailored CV, cover letter and Excel report, saved on this computer in your documents folder."
         actions={
           <Button variant="outline" onClick={() => rescan.mutate()} loading={rescan.isPending}>
             <RefreshCw /> Rescan folder

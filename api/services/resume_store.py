@@ -1,7 +1,9 @@
-"""Read, validate and save resume_data.yaml.
+"""Read, validate and save the master resume (YAML).
 
-Saves are atomic, keep a timestamped backup (last 20) and go through
-ruamel.yaml so existing key order, quoting and comments survive.
+For a signed-in web user the YAML text and its last 20 versions live in the
+server database; on the command line they are resume_data.yaml and backups/.
+Saves keep a timestamped backup and go through ruamel.yaml so existing key
+order, quoting and comments survive.
 """
 import hashlib
 import io
@@ -15,6 +17,7 @@ from ruamel.yaml.error import MarkedYAMLError
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString, SingleQuotedScalarString
 
 import agent_settings
+import user_scope
 from api.models.resume import Resume, cross_reference_warnings, is_empty
 from config import BACKUPS_DIR, RESUME_PATH, atomic_write_text
 
@@ -42,11 +45,32 @@ def _yaml():
     return yaml
 
 
+def _db_scope():
+    scope = user_scope.current()
+    if scope is None:
+        return None, None
+    from api import store
+
+    return scope, store
+
+
 def read_text():
+    scope, store = _db_scope()
+    if scope is not None:
+        return scope.cached("resume_text", lambda: store.get_resume_text(scope.user_id))
     try:
         return RESUME_PATH.read_text(encoding="utf-8")
     except FileNotFoundError:
         return ""
+
+
+def write_text(text):
+    scope, store = _db_scope()
+    if scope is not None:
+        store.set_resume_text(scope.user_id, text)
+        scope.forget("resume_text")
+        return
+    atomic_write_text(RESUME_PATH, text)
 
 
 def etag_for(text):
@@ -184,8 +208,12 @@ def backup_current(label="save"):
     text = read_text()
     if not text.strip():
         return None
-    RESUME_BACKUPS.mkdir(parents=True, exist_ok=True)
     backup_id = _backup_id(label)
+    scope, store = _db_scope()
+    if scope is not None:
+        store.add_version(scope.user_id, backup_id, label, text, keep=KEEP_BACKUPS)
+        return backup_id
+    RESUME_BACKUPS.mkdir(parents=True, exist_ok=True)
     atomic_write_text(RESUME_BACKUPS / f"{backup_id}.yaml", text)
     prune_backups()
     return backup_id
@@ -207,6 +235,10 @@ LABELS = {
 
 def list_backups():
     items: list[dict] = []
+    scope, store = _db_scope()
+    if scope is not None:
+        return [{"id": row["backup_id"], "created_at": row["created_at"], "size": row["size"] or 0,
+                 "label": LABELS.get(row["label"] or "", "Backup")} for row in store.list_versions(scope.user_id)]
     if not RESUME_BACKUPS.exists():
         return items
     for file in sorted(RESUME_BACKUPS.glob("resume_*.yaml"), reverse=True):
@@ -233,6 +265,11 @@ def backup_path(backup_id):
 
 
 def read_backup(backup_id):
+    scope, store = _db_scope()
+    if scope is not None:
+        if not BACKUP_NAME.match(backup_id or ""):
+            raise FileNotFoundError(backup_id)
+        return store.get_version(scope.user_id, backup_id)
     return backup_path(backup_id).read_text(encoding="utf-8")
 
 
@@ -241,7 +278,7 @@ def read_backup(backup_id):
 def _check_etag(expected):
     if expected and expected != etag_for(read_text()):
         raise ResumeConflict(
-            "resume_data.yaml changed on disk after you opened it. Reload to see the latest version."
+            "Your resume changed after you opened it (in another tab?). Reload to see the latest version."
         )
 
 
@@ -254,7 +291,7 @@ def save(data, etag=None, label="save"):
     if text.rstrip("\n") == base.rstrip("\n"):
         return resume, etag_for(base), None  # Nothing changed: leave the file and its mtime alone.
     backup_id = backup_current(label)
-    atomic_write_text(RESUME_PATH, text)
+    write_text(text)
     return resume, etag_for(text), backup_id
 
 
@@ -309,7 +346,7 @@ def save_raw(text, etag=None):
     if not text.endswith("\n"):
         text += "\n"
     backup_id = backup_current("raw") if text != read_text() else None
-    atomic_write_text(RESUME_PATH, text)
+    write_text(text)
     return etag_for(text), backup_id
 
 
@@ -317,7 +354,7 @@ def restore(backup_id):
     text = read_backup(backup_id)
     parse_raw(text)
     backup_current("restore")
-    atomic_write_text(RESUME_PATH, text)
+    write_text(text)
     return etag_for(text)
 
 

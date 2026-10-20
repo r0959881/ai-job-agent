@@ -1,10 +1,10 @@
 """Offline fakes for UI development and end-to-end tests.
 
-Enabled only when AI_JOB_AGENT_FAKE_SOURCES=1. Replaces Adzuna/Arbeitnow HTTP
-calls, the Groq client and the Gmail service with deterministic stand-ins, so a
-full run works without network access or API keys. Never active by default.
+Enabled only when AI_JOB_AGENT_FAKE_SOURCES=1. Replaces the job-source HTTP
+calls, the JobSpy scraper, the job-site adapters and the Groq client with
+deterministic stand-ins, so a full run works without network access or API
+keys. Never active by default.
 """
-import base64
 import os
 import time
 from datetime import UTC, datetime
@@ -46,6 +46,34 @@ def _fake_get(url, params=None, timeout=None, **_kwargs):
         "description": "Junior Python and SQL data pipelines in Gent.", "location": "Gent, Belgium",
         "url": "https://example.com/jobs/gent-data-engineer",
     }]})
+
+
+def _fake_site_search(source, query, ctx, region, _cache=None):
+    """StepStone, VDAB, Michael Page and Jobat stand-in: one junior posting per search phrase."""
+    time.sleep(0.2)
+    return [{
+        "title": f"Junior {query.title()}", "company_name": f"Demo {query.title()} ({source.title()})",
+        "description": f"Junior {query} role. SQL, Python and Power BI. 0-2 years of experience.",
+        "location": f"Antwerp, {region['label']}", "url": f"https://example.com/{source}/{query.replace(' ', '-')}",
+        "created": datetime.now(UTC).isoformat(),
+    }]
+
+
+def _fake_scrape(**kwargs):
+    """JobSpy stand-in: one junior posting per search phrase."""
+    import re
+
+    time.sleep(0.3)
+    term = kwargs["search_term"]
+    phrase = (re.findall(r'"([^"]+)"', term) or [term])[0]
+    site = kwargs["site_name"][0]
+    return [{
+        "title": f"Junior {phrase.title()}", "company": f"Demo {phrase.title()} ({site.title()})",
+        "location": f"Brussels, {kwargs.get('location', '')}",
+        "job_url": f"https://example.com/{site}/{phrase.replace(' ', '-')}",
+        "description": f"Junior {phrase} role. SQL, Python and Power BI. 0-2 years of experience.",
+        "date_posted": datetime.now(UTC).date(), "job_level": "entry level", "is_remote": False,
+    }]
 
 
 FAKE_RESUME = {
@@ -95,53 +123,18 @@ class FakeGroq:
         self.models = type("Models", (), {"list": lambda self: type("L", (), {"data": [1, 2, 3]})()})()
 
 
-class _Exec:
-    def __init__(self, value):
-        self.value = value
-
-    def execute(self):
-        return self.value
-
-
-class FakeGmailService:
-    def users(self):
-        html = ('<html><body><p><a href="https://www.linkedin.com/jobs/view/1">Junior BI Analyst</a> '
-                'Mechelen, Belgium</p></body></html>')
-        encoded = base64.urlsafe_b64encode(html.encode()).decode()
-
-        class Messages:
-            def list(self, **_kwargs):
-                return _Exec({"messages": [{"id": "demo"}]})
-
-            def get(self, **_kwargs):
-                return _Exec({"payload": {"headers": [{"name": "From", "value": "jobalerts-noreply@linkedin.com"}],
-                                          "mimeType": "text/html", "body": {"data": encoded}}})
-
-        class Users:
-            def messages(self):
-                return Messages()
-
-            def getProfile(self, userId):
-                return _Exec({"emailAddress": "demo@example.com", "messagesTotal": 42})
-
-        return Users()
-
-
 def install():
     """Patch the pipeline modules in this process. Returns True when fakes were installed."""
     if not enabled():
         return False
     import discovery
-    import gmail_parser
-    import main
     import tailor
+    from job_sources import scrapers, sites
 
-    os.environ.setdefault("GROQ_API_KEY", "gsk_fake_for_demo")
-    os.environ.setdefault("ADZUNA_APP_ID", "demo")
-    os.environ.setdefault("ADZUNA_APP_KEY", "demo")
     discovery.requests.get = _fake_get
+    discovery.adzuna_credentials = lambda: ("demo", "demo")
+    scrapers._scrape = _fake_scrape
+    sites.search = _fake_site_search
     tailor.Groq = FakeGroq  # type: ignore[misc, assignment]
-    main.get_client = lambda: FakeGroq()
     tailor.get_client = lambda: FakeGroq()
-    gmail_parser.get_gmail_service = lambda interactive=True: FakeGmailService()
     return True

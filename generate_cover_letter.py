@@ -7,6 +7,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 import agent_settings
+import user_scope
 from agent_log import log
 from config import OUTPUT_DIR, PROJECT_ROOT, file_name_slug, load_resume_file, long_path
 
@@ -54,13 +55,25 @@ GENERAL_LETTER = {
 
 
 def role_letters():
-    """Editable letters from agent_settings.yaml, falling back to the built-in text."""
+    """Editable letters from the settings, falling back to the built-in text.
+
+    The built-in letters describe this project's original owner, so web users only
+    get their own letters plus the general one.
+    """
     configured = agent_settings.get("cover_letters") or {}
-    return {**ROLE_LETTERS, **configured}
+    builtin = {} if user_scope.current() else ROLE_LETTERS
+    return {**builtin, **configured}
 
 
 def _safe(text):
     return "".join(character for character in str(text) if character.isalnum() or character in " _-").strip()
+
+
+def cover_letter_stem(full_name, role_family, company=None, job_title=None):
+    prefix = f"{file_name_slug(full_name)}_Cover_Letter_"
+    if company:
+        return f"{prefix}{_safe(company)}_{_safe(job_title or role_family)}"[:180].rstrip(" ._")
+    return f"{prefix}{_safe(role_family)}"
 
 
 def create_cover_letter_docx(role_family, company=None, job_title=None, data=None, output_path=None):
@@ -156,11 +169,7 @@ def create_cover_letter_docx(role_family, company=None, job_title=None, data=Non
         doc.save(output_path)
         return str(output_path)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    prefix = f"{file_name_slug(info.get('full_name'))}_Cover_Letter_"
-    if company:
-        stem = f"{prefix}{_safe(company)}_{_safe(job_title or role_family)}"[:180].rstrip(" ._")
-    else:
-        stem = f"{prefix}{_safe(role_family)}"
+    stem = cover_letter_stem(info.get("full_name"), role_family, company, job_title)
     path = f"output/{stem}.docx"
     doc.save(long_path(PROJECT_ROOT / path))
     log(f"Cover letter created: {path}")

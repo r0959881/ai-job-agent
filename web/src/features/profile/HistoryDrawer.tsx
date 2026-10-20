@@ -83,7 +83,7 @@ export function HistoryDrawer({
         <div className="border-b p-4 pr-12">
           <SheetTitle>History</SheetTitle>
           <SheetDescription>
-            The last 20 versions of resume_data.yaml. A copy is kept before every save.
+            The last 20 versions of your profile. A copy is kept before every save.
           </SheetDescription>
         </div>
         <div className="grid min-h-0 flex-1 md:grid-cols-[16rem_1fr]">

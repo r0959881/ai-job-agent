@@ -22,7 +22,6 @@ function stepDuration(step: RunStep, now: number) {
 }
 
 const ACTIONS: Record<string, { label: string; to: string }> = {
-  reconnect_gmail: { label: "Reconnect Gmail", to: "/settings/integrations#gmail" },
   configure_groq: { label: "Add Groq key", to: "/settings/integrations" },
 };
 

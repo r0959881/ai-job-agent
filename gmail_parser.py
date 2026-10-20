@@ -147,7 +147,7 @@ def count_alert_messages(service=None, interactive=False):
     return len(results.get('messages', []))
 
 
-def parse_email_alerts(interactive=True):
+def parse_email_alerts(interactive=True, settings=None):
     service = get_gmail_service(interactive=interactive)
     if not service:
         return None
@@ -155,7 +155,8 @@ def parse_email_alerts(interactive=True):
     log("📬 Connected to Gmail API. Searching for Belgian job alerts...")
 
     # Search trusted job-alert senders; the relevance filter handles titles and seniority.
-    settings = agent_settings.load()
+    # `settings` carries the run's regions and roles; Gmail options always come from the file.
+    settings = settings or agent_settings.load()
     query = agent_settings.gmail_query(settings)
     totals = {"messages": 0, "discovered": 0, "new": 0, "duplicates": 0, "filtered": 0}
 
@@ -216,7 +217,7 @@ def parse_email_alerts(interactive=True):
         log(f"📨 Gmail messages: {len(messages)} | candidate links: {len(email_jobs)} | bodyless: {skipped_without_body}")
         for source in sorted({job["source"] for job in email_jobs}):
             source_jobs = [job for job in email_jobs if job["source"] == source]
-            counts = save_jobs_to_db(source_jobs, source)
+            counts = save_jobs_to_db(source_jobs, source, settings)
             for key in ("discovered", "new", "duplicates", "filtered"):
                 totals[key] += counts[key]
         return totals

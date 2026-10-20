@@ -11,6 +11,8 @@ export interface JobFilters {
   date_to: string;
   has_cv: "" | "true" | "false";
   quick: "" | "ready" | "applied_week" | "follow_up";
+  /** When the job was added to the app: last hour, day, week, or by the latest run. */
+  added: "" | "1h" | "24h" | "7d" | "run";
   sort: string;
   order: "asc" | "desc";
   page: number;
@@ -32,6 +34,7 @@ export function useJobFilters() {
     date_to: params.get("date_to") ?? "",
     has_cv: (params.get("has_cv") as JobFilters["has_cv"]) ?? "",
     quick: (params.get("quick") as JobFilters["quick"]) ?? "",
+    added: (params.get("added") as JobFilters["added"]) ?? "",
     sort: params.get("sort") ?? "posted",
     order: params.get("order") === "asc" ? "asc" : "desc",
     page: Math.max(1, Number(params.get("page") ?? 1) || 1),
@@ -67,7 +70,8 @@ export function useJobFilters() {
     (filters.q ? 1 : 0) +
     (filters.date_from || filters.date_to ? 1 : 0) +
     (filters.has_cv ? 1 : 0) +
-    (filters.quick ? 1 : 0);
+    (filters.quick ? 1 : 0) +
+    (filters.added ? 1 : 0);
 
   const apiQuery = React.useMemo(() => {
     const search = new URLSearchParams();
@@ -77,6 +81,7 @@ export function useJobFilters() {
     if (filters.date_to) search.set("date_to", filters.date_to);
     if (filters.has_cv) search.set("has_cv", filters.has_cv);
     if (filters.quick) search.set("quick", filters.quick);
+    if (filters.added) search.set("added", filters.added);
     search.set("sort", filters.sort);
     search.set("order", filters.order);
     search.set("page", String(filters.page));

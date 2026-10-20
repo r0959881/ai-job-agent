@@ -36,7 +36,8 @@ Constraints:
 
 One person (me) runs this on my own laptop. There are no accounts, no multi-tenancy and no cloud hosting. The UI must let me:
 
-1. **Onboard with my resume.** Upload a PDF or DOCX resume, have the LLM extract it into the `resume_data.yaml` structure, review and correct the extracted data, then save it. Alternatively, start from the existing YAML.
+1. **Onboard with my resume.** Upload a PDF or DOCX resume, have the LLM extract it into the `resume_data.yaml` structure, review and correct the extracted data, then save it. Alternatively, **import my LinkedIn data export (.zip)**, or start from the existing YAML.
+1b. **Connect my Gmail account from the UI** with Google sign-in (no terminal, no browser pop-up from Python), and always see whether the connection is healthy.
 2. **Manage my master data at any time.** Add, edit, delete and reorder every resume section, role profile, standard answer, target role, search query and location filter.
 3. **Run the agent.** Start a run with one click, see live per-step progress and logs, cancel the run, and look at the history of past runs.
 4. **See everything it produced.** Browse every tailored CV and cover letter, preview it in the browser, download it, regenerate it or delete it, each linked to its job.
@@ -65,11 +66,34 @@ One person (me) runs this on my own laptop. There are no accounts, no multi-tena
    - New `jobs` columns: `role_family`, `application_status` (`not_applied`/`applied`/`interviewing`/`offer`/`rejected`/`skipped`), `applied_at`, `notes`, `cover_letter_path`.
    - Backfill `documents` by scanning the existing `output/` files, using `find_existing_cv` logic to match files to jobs.
 7. **Resume store.** Validate with Pydantic models that mirror the YAML exactly. Every write is atomic (write to a temp file, then replace). Before each save, keep a timestamped backup in `backups/resume/` (keep the last 20) so I can restore any version. Preserve key order, and use `ruamel.yaml` if you can keep comments.
-8. **Run manager.** Allow one run at a time and run it in a background thread or subprocess. Support cooperative cancellation between steps and between jobs. Write per-run log files to `output/runs/`. If Gmail OAuth needs interactive consent, surface that as a clear UI state ("Connect Gmail") rather than hanging. Missing API keys should skip that step with a warning event, not crash the run.
+8. **Gmail OAuth web flow** (new `api/integrations/gmail.py`; the CLI keeps `run_local_server()` as its fallback):
+   - Use `google_auth_oauthlib.flow.Flow` with the existing `credentials.json`. A Desktop/"installed" client accepts loopback redirects, so the redirect URI is `http://127.0.0.1:<port>/api/integrations/gmail/callback`. If the client type needs it, tell me which redirect URI to register in Google Cloud Console.
+   - The scope stays `gmail.readonly`. Use a random `state` (validated on callback) plus PKCE, `access_type=offline` and `prompt=consent` so a refresh token is always issued.
+   - On callback, write `token.json` atomically, then redirect to `/settings/integrations?gmail=connected`. Handle denial and errors with a friendly message.
+   - Refactor `get_gmail_service()` so it **never opens a browser when called from the server**. Add an `interactive: bool` parameter: it is `True` for the CLI and `False` for the API. If the token is missing or revoked and `interactive=False`, raise a typed `GmailAuthRequired` error.
+   - Status endpoint: connected yes/no, the account email (from `users.getProfile`), granted scopes, token expiry, last successful refresh, and the last fetch time with the message count.
+   - Disconnect: revoke the token at Google, then delete `token.json`.
+   - If refresh fails with `RefreshError`, mark the status `reauth_required`. In a run, the Gmail step is **skipped with a warning event** and a "Reconnect Gmail" action, while the other sources continue.
+   - Show an explanation in the UI: "If your Google Cloud app is in *Testing* mode, Google expires access after 7 days. Reconnect, or publish the app for personal use."
+9. **LinkedIn data export importer** (new `api/importers/linkedin.py`). It is a pure function: zip bytes in, `ResumeDraft` plus a list of warnings out.
+   - Read the zip **in memory**. Only open known CSV names (case-insensitive, at any depth): `Profile.csv`, `Positions.csv`, `Education.csv`, `Skills.csv`, `Certifications.csv`, `Languages.csv`, `Projects.csv`, `Email Addresses.csv`, `PhoneNumbers.csv`. Ignore everything else, especially messages and connections, and never save those to disk.
+   - Guard against zip-slip and zip bombs: a 50MB upload limit, a cap on the total uncompressed size, and limits on file count and row count. Decode as UTF-8 with BOM, falling back to latin-1. LinkedIn sometimes adds note lines before the header row, so detect the header.
+   - Map columns tolerantly, because LinkedIn renames them over time:
+     - Profile (First/Last Name, Headline, Summary, Geo Location) → `personal_info`
+     - Positions (Company Name, Title, Description, Location, Started On, Finished On) → `experience[]`. Format the dates as "Jun 2026", and an empty end date as "Present".
+     - Education → `education`. The YAML holds one object, so pick the most recent and list the others as alternatives in the review.
+     - Skills → a pending skills pool to assign to `core_skills` categories.
+     - Certifications (Name, Authority, Started On) → `certifications[]`
+     - Languages (Name, Proficiency) → `languages[]`
+     - Projects → `projects[]`
+     - Email and phone → `personal_info`
+   - Optional LLM enrichment (Groq, with an explicit "Enhance with AI" toggle): split position descriptions into bullets, sort skills into the existing categories, and suggest `tech_stack` for projects. Use the same no-fabrication rule as `tailor.py`, and show AI-changed fields with a badge.
+   - **Merge, don't overwrite.** Diff the draft against the current resume, matching on company plus role, title, or name. Label each item *new*, *matching* (unchanged), or *conflict*. Nothing is saved until I confirm, and saving creates a backup first.
+10. **Run manager.** Allow one run at a time and run it in a background thread or subprocess. Support cooperative cancellation between steps and between jobs. Write per-run log files to `output/runs/`. If Gmail OAuth needs interactive consent, surface that as a clear UI state ("Connect Gmail") rather than hanging. Missing API keys should skip that step with a warning event, not crash the run.
 
 **API surface (REST, JSON):**
-- `GET/PUT /api/resume`, `GET /api/resume/backups`, `POST /api/resume/backups/{id}/restore`, `POST /api/resume/import` (multipart PDF/DOCX → extracted draft, **not saved** until confirmed), `GET/PUT /api/resume/raw` (YAML text with validation errors and line numbers)
-- `GET/PUT /api/settings/search`, `GET/PUT /api/settings/secrets` (values masked on read and write-only, with a "test connection" action per integration), `GET /api/integrations/status` (Groq, Adzuna, Gmail token, SMTP)
+- `GET/PUT /api/resume`, `GET /api/resume/backups`, `POST /api/resume/backups/{id}/restore`, `POST /api/resume/import` (multipart PDF/DOCX → extracted draft, **not saved** until confirmed), `POST /api/resume/import/linkedin` (multipart .zip → draft, per-item merge diff and warnings, **not saved**), `POST /api/resume/import/commit` (applies my accepted merge decisions, after a backup), `GET/PUT /api/resume/raw` (YAML text with validation errors and line numbers)
+- `GET/PUT /api/settings/search`, `GET/PUT /api/settings/secrets` (values masked on read and write-only, with a "test connection" action per integration), `GET /api/integrations/status` (Groq, Adzuna, Gmail, SMTP), `GET /api/integrations/gmail/connect` (302 to Google), `GET /api/integrations/gmail/callback`, `GET /api/integrations/gmail/status`, `POST /api/integrations/gmail/test` (counts matching alert emails from the last 2 days without saving anything), `POST /api/integrations/gmail/disconnect`
 - `POST /api/runs`, `GET /api/runs`, `GET /api/runs/{id}`, `GET /api/runs/{id}/events` (SSE), `POST /api/runs/{id}/cancel`
 - `GET /api/jobs` (filtering, sorting and paging on the server), `GET/PATCH /api/jobs/{id}`, `POST /api/jobs/{id}/tailor`, `POST /api/jobs/{id}/cover-letter`, `POST /api/jobs/{id}/autofill`, `DELETE /api/jobs/{id}`
 - `GET /api/documents`, `GET /api/documents/{id}/download`, `GET /api/documents/{id}/preview` (DOCX → sanitised HTML using `mammoth`), `DELETE /api/documents/{id}` (deletes the file too, after confirmation), `GET /api/reports/latest`
@@ -87,9 +111,21 @@ One person (me) runs this on my own laptop. There are no accounts, no multi-tena
 
 ### Onboarding (first launch or empty resume)
 A three-step wizard:
-1. Upload a resume (drag-and-drop for PDF/DOCX) *or* "Use existing resume_data.yaml".
-2. Review the extracted data side by side: the original document preview on the left, editable structured fields on the right. Highlight low-confidence fields.
-3. Enter API keys and test each one, then choose target roles. Finish with the option "Run your first search".
+1. **Choose a source.** Show three equal cards:
+   - **Upload resume** (PDF/DOCX, drag-and-drop)
+   - **Import from LinkedIn** (.zip). An inline "How to get it" explainer covers LinkedIn → Settings → Data privacy → *Get a copy of your data* → pick the files you want (Profile, Positions, Education, Skills, Certifications, Languages, Projects are enough) → download. Note that LinkedIn emails a link and it can take from about 10 minutes up to a day.
+   - **Use existing resume_data.yaml**
+
+   Sources can be combined: for example, a PDF first, then LinkedIn to fill gaps.
+2. **Review.**
+   - *PDF/DOCX:* side by side, with the original document preview on the left and editable structured fields on the right. Highlight low-confidence fields.
+   - *LinkedIn:* a merge-review screen grouped by section. Each item is a card with a *New* / *Matches existing* / *Conflict* badge. Conflicts show the current and imported values side by side with *Keep mine* / *Use LinkedIn* / *Keep both* buttons. Provide bulk actions ("Accept all new", "Keep mine for all conflicts"), and show a skills pool as chips I drag into skill categories. Show warnings for missing CSVs or unparseable dates. A sticky footer shows "12 additions, 3 changes. **Apply to profile**".
+3. **Connect & configure.**
+   - Enter API keys and test each one.
+   - **Connect Gmail:** a Google sign-in button, then a success state showing the account email, plus "Test: found 14 alert emails in the last 2 days". The step can be skipped.
+   - Choose target roles.
+
+   Finish with the option "Run your first search".
 
 ### Dashboard
 - KPI cards: jobs found (last 48h), CVs generated, applications sent, interviews.
@@ -105,6 +141,7 @@ A three-step wizard:
 - Role profiles show focus text, keyword tags, preferred skill categories as a multi-select from the existing categories, and preferred projects as a multi-select of project titles. Warn when a referenced project or category no longer exists.
 - Saving: one explicit **Save** bar that appears when the form is dirty and shows a diff count. Guard unsaved changes on navigation. Validate inline as I type.
 - Also provide an **"Advanced: Edit YAML"** toggle that opens a code editor (CodeMirror 6 with YAML mode and lint markers from server validation).
+- The header has an **Import** menu: "From resume file…" and "From LinkedIn export…". Both open the same review and merge flow as onboarding, at any time.
 - A **History** drawer lists the backups, shows a diff against the current data, and offers restore.
 - A live **CV preview** panel (optional, toggleable) renders a sample CV for a chosen role family from the current, possibly unsaved, data.
 
@@ -140,7 +177,13 @@ Show source-specific tips, for example: LinkedIn/Indeed alert links may need log
 
 ### Settings
 - **Search:** editable target roles with keyword tags, search queries per role, allowed and blocked locations, seniority and exclusion keywords, the time window, and the Gmail alert senders.
-- **Integrations:** masked secret fields with show, replace and test actions, Gmail connect/reconnect showing the token status, and SMTP alerts on/off with a test email button.
+- **Integrations:** masked secret fields with show, replace and test actions, and SMTP alerts on/off with a test email button. Give Gmail its own card:
+  - **States:** *Not connected* (Connect button) → *Connected as name@gmail.com* (green, with scope "Read-only", last fetch and message count) → *Reconnect required* (amber, with the reason and a Reconnect button) → *Error*.
+  - **Actions:** Test connection, Reconnect, and Disconnect (with a confirmation stating that the token is revoked at Google).
+  - **Editable alert senders:** a list of tags (linkedin.com, indeed.com, …) and the look-back window, both used to build the Gmail search query.
+  - **Help:** a short help link on creating `credentials.json` in Google Cloud Console, with a check that shows whether the file is present.
+  - **Visibility:** a reconnect banner also appears on the Dashboard and in the Start-run dialog whenever Gmail needs attention.
+- **LinkedIn:** explain that LinkedIn jobs arrive through LinkedIn job-alert emails read by Gmail, because LinkedIn offers no personal API for jobs. Link to LinkedIn's job-alert settings, and offer "Import profile from LinkedIn export".
 - **Data:** open the output folder, export everything (zip of YAML, DB and documents), and a "reset jobs database" action behind a typed confirmation.
 
 ---
@@ -173,12 +216,12 @@ Each phase ends with working, testable software and a stop for my review.
 | 4 | **Run agent.** Run manager, SSE, start dialog, live stepper and logs, cancel, history | A full run from the UI matches the CLI output, and cancel works mid-tailoring |
 | 5 | **Jobs & Apply workspace.** Grid, filters, detail sheet, apply checklist, status tracking, per-job tailor and cover letter, auto-fill | I can go from a found job to "applied" entirely in the UI |
 | 6 | **Documents & Dashboard.** Library, DOCX preview, orphan cleanup, stats, funnel, ready-to-apply list | Every file in `output/` is visible and linked |
-| 7 | **Onboarding & Settings.** Resume import (PDF/DOCX → LLM extraction → review), integrations tests, search settings editor, export and reset | A fresh clone with an empty YAML can be onboarded from a PDF resume |
+| 7 | **Onboarding & Settings.** Resume import (PDF/DOCX → LLM extraction → review), **LinkedIn export import with merge review**, **Gmail OAuth web flow, status card, test and disconnect**, integrations tests, search settings editor, export and reset | A fresh clone with an empty YAML can be onboarded from a PDF resume *or* a LinkedIn zip. Gmail can be connected, tested, disconnected and reconnected entirely in the UI, and a revoked token makes a run skip Gmail with a warning instead of failing |
 | 8 | **Polish & QA.** Accessibility pass, keyboard shortcuts, performance (virtualise large tables), Playwright end-to-end smoke test, README "Using the UI" section | The checklist in section 7 passes |
 
 ## 7. Quality bar & testing
 
-- **Backend:** pytest for the resume validation round-trip, settings, path-traversal protection, run lifecycle (mock Groq and the HTTP sources) and DB migrations against a copy of `jobs.db`.
+- **Backend:** pytest for the resume validation round-trip, settings, path-traversal protection, **the LinkedIn importer** (fixture zips with renamed columns, BOM and preamble lines, missing files, a zip-slip entry and an oversized file), **merge diff decisions**, **Gmail OAuth** (mocked Google: state mismatch rejected, callback writes the token, a refresh error leads to `reauth_required`, and the server path never opens a browser), run lifecycle (mock Groq and the HTTP sources) and DB migrations against a copy of `jobs.db`.
 - **Frontend:** Vitest + Testing Library for forms and reducers, and one Playwright end-to-end flow (edit profile → start a mocked run → open a job → mark it applied).
 - **Code:** type-check both sides (`mypy --strict` on `api/` if practical, `tsc --noEmit`) and lint (ruff, eslint + prettier). Add no new global state. Keep the existing modules importable without side effects.
 - **Dependencies:** add backend dependencies to `requirements.txt`, and pin frontend dependencies in `package.json`. Update `.gitignore` for `web/node_modules`, `web/dist`, `.ui_token`, `backups/` and `output/runs/`.

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DocumentDownload } from "@/features/documents/DocumentDownload";
 import {
-  Bot,
   CheckCircle2,
   Circle,
   Download,
@@ -15,7 +15,6 @@ import {
 import * as React from "react";
 import { toast } from "sonner";
 import { APPLICATION_STATUS_OPTIONS, CopyButton, Field, RelativeTime } from "@/components/common";
-import { useConfirm } from "@/components/confirm";
 import { StringListEditor } from "@/components/sortable";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/controls";
@@ -163,7 +162,6 @@ function CvEditor({ job, onDone }: { job: JobDetail; onDone: (job: JobDetail) =>
 }
 
 export function ApplyWorkspace({ job }: { job: JobDetail }) {
-  const confirm = useConfirm();
   const { patch, setJob } = useJobMutations(job);
   const [preview, setPreview] = React.useState<DocumentItem | null>(null);
   const [company, setCompany] = React.useState(job.company.startsWith("Partner (") ? "" : job.company);
@@ -201,26 +199,6 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
     onError: (error: Error) =>
       toast.error("The cover letter was not created", { description: error.message }),
   });
-  const autofill = useMutation({
-    mutationFn: () =>
-      api.post<{ ok: boolean; filled: string[]; error?: string }>(`/api/jobs/${job.id}/autofill`),
-    onSuccess: (result) => {
-      if (result.ok) {
-        toast.success(
-          result.filled.length
-            ? `Filled: ${result.filled.join(", ")}`
-            : "The page opened, but no form fields were recognised",
-          {
-            description: "Review everything in the browser window and submit it yourself.",
-          },
-        );
-      } else {
-        toast.warning("Auto-fill stopped early", { description: result.error });
-      }
-    },
-    onError: (error: Error) => toast.error("Auto-fill could not start", { description: error.message }),
-  });
-
   const info = resume.data?.data.personal_info;
   const answers: [string, string][] = [
     ["Full name", info?.full_name ?? ""],
@@ -310,13 +288,13 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
                 <Button size="sm" variant="outline" onClick={() => setPreview(cvDoc)}>
                   <Eye /> Preview
                 </Button>
-                <a
+                <DocumentDownload
                   className={buttonVariants({ size: "sm", variant: "outline" })}
-                  href={`/api/documents/${cvDoc.id}/download`}
-                  onClick={() => mark("cv")}
+                  id={cvDoc.id}
+                  onDownloaded={() => mark("cv")}
                 >
                   <Download /> Download
-                </a>
+                </DocumentDownload>
               </>
             ) : null}
             <Button
@@ -369,13 +347,13 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
                 <Button size="sm" variant="outline" onClick={() => setPreview(letterDoc)}>
                   <Eye /> Preview
                 </Button>
-                <a
+                <DocumentDownload
                   className={buttonVariants({ size: "sm", variant: "outline" })}
-                  href={`/api/documents/${letterDoc.id}/download`}
-                  onClick={() => mark("cover_letter")}
+                  id={letterDoc.id}
+                  onDownloaded={() => mark("cover_letter")}
                 >
                   <Download /> Download
-                </a>
+                </DocumentDownload>
               </>
             )}
           </div>
@@ -408,35 +386,19 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
           done={Boolean(checklist.apply)}
           onToggle={toggle("apply")}
           title="Apply"
-          description="You always review and press submit yourself."
+          description="Apply on the posting's site with the downloaded CV and letter, then mark it here."
         >
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              loading={autofill.isPending}
-              disabled={!job.url}
-              onClick={async () => {
-                const ok = await confirm({
-                  title: "Open the posting with auto-fill?",
-                  description: (
-                    <>
-                      <p>
-                        A visible browser window opens, fills your name, email and phone, and attaches the
-                        tailored CV where it can.
-                      </p>
-                      <p className="mt-2 font-medium">
-                        Nothing is submitted. Check every field, submit it yourself, then close the window.
-                      </p>
-                    </>
-                  ),
-                  confirmLabel: "Open browser",
-                });
-                if (ok) autofill.mutate();
-              }}
-            >
-              <Bot /> Auto-fill with browser
-            </Button>
+            {job.url && (
+              <a
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink /> Open the posting
+              </a>
+            )}
             <Button
               size="sm"
               onClick={() => {
@@ -448,16 +410,9 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
               }}
               disabled={job.application_status !== "not_applied"}
             >
-              <Send /> I applied manually
+              <Send /> I applied
             </Button>
           </div>
-          {autofill.data && (
-            <p className={cn("text-body", autofill.data.ok ? "text-success" : "text-warning")} role="status">
-              {autofill.data.ok
-                ? `Auto-fill finished. Filled: ${autofill.data.filled.join(", ") || "nothing recognised"}.`
-                : `Auto-fill stopped: ${autofill.data.error}`}
-            </p>
-          )}
         </Step>
 
         <Step index={6} done={Boolean(checklist.track)} onToggle={toggle("track")} title="Track">

@@ -19,6 +19,13 @@ const absoluteFormat = new Intl.DateTimeFormat("en-GB", {
   timeStyle: "short",
 });
 const dateFormat = new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, dateStyle: "medium" });
+const shortDateTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 const relativeFormat = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "narrow" });
 
 export function parseDate(value?: string | null): Date | null {
@@ -39,6 +46,12 @@ export function formatAbsolute(value?: string | null) {
 export function formatDate(value?: string | null) {
   const date = parseDate(value);
   return date ? dateFormat.format(date) : "";
+}
+
+/** "21 Oct, 09:14" (Brussels time), for tables. */
+export function formatShortDateTime(value?: string | null) {
+  const date = parseDate(value);
+  return date ? shortDateTimeFormat.format(date) : "";
 }
 
 export function formatRelative(value?: string | null, now = Date.now()) {
