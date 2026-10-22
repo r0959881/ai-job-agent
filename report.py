@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from config import OUTPUT_DIR, file_name_slug, relative_to_project, resolve_project_path
+from config import OUTPUT_DIR, document_stem, file_name_slug, relative_to_project, resolve_project_path
 
 
 REPORT_COLUMNS = [
@@ -41,8 +41,11 @@ def find_existing_cv(job, output_directory=None, full_name=None):
     if saved_path and resolve_project_path(saved_path).exists():
         return saved_path
 
-    prefix = cv_prefix_for_job(job, full_name)
     directory = Path(output_directory) if output_directory else OUTPUT_DIR
+    current = directory / f"{document_stem(job.get('title', ''), job.get('company', ''), 'cv')}.pdf"
+    if current.exists():
+        return relative_to_project(current)
+    prefix = cv_prefix_for_job(job, full_name)  # CVs from before the "Title_Company_CV" names
     candidates = sorted(directory.glob(f"{glob_escape(prefix)}*.docx"))
     return relative_to_project(candidates[0]) if candidates else ""
 

@@ -129,12 +129,13 @@ def install():
         return False
     import discovery
     import tailor
-    from job_sources import scrapers, sites
+    from job_sources import scrapers, sites, websearch
 
     discovery.requests.get = _fake_get
     discovery.adzuna_credentials = lambda: ("demo", "demo")
     scrapers._scrape = _fake_scrape
     sites.search = _fake_site_search
+    websearch.fetch = lambda query, ctx, region, _engine, _cache: []
     tailor.Groq = FakeGroq  # type: ignore[misc, assignment]
     tailor.get_client = lambda: FakeGroq()
     return True

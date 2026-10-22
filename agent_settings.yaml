@@ -142,7 +142,7 @@ trusted_alert_sources:
 - Actiris Brussels
 - Indeed Alerts
 - LinkedIn Alerts
-time_window_hours: 48
+time_window_hours: 24
 sources:
   adzuna: true
   arbeitnow: true

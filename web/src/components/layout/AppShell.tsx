@@ -8,6 +8,7 @@ import {
   Menu,
   Search,
   Settings,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import * as React from "react";
@@ -25,7 +26,9 @@ import { cn } from "@/lib/utils";
 export const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/profile", label: "Profile", icon: UserRound },
-  { to: "/jobs", label: "Jobs", icon: Briefcase },
+  { to: "/jobs/new", label: "New jobs", icon: Sparkles },
+  // Job pages (/jobs/:id) belong to Jobs, but New jobs is its own item.
+  { to: "/jobs", label: "Jobs", icon: Briefcase, except: "/jobs/new" },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/runs", label: "Runs", icon: History },
   { to: "/settings", label: "Settings", icon: Settings },
@@ -40,9 +43,10 @@ function readCollapsed() {
 }
 
 function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { pathname } = useLocation();
   return (
     <nav aria-label="Main" className="flex flex-col gap-1">
-      {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => {
+      {NAV_ITEMS.map(({ to, label, icon: Icon, end, except }) => {
         const link = (
           <NavLink
             key={to}
@@ -52,7 +56,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
             className={({ isActive }) =>
               cn(
                 "flex h-9 items-center gap-3 rounded-md px-3 text-body font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground",
-                isActive && "bg-accent text-accent-foreground hover:bg-accent",
+                isActive && pathname !== except && "bg-accent text-accent-foreground hover:bg-accent",
                 collapsed && "justify-center px-0",
               )
             }

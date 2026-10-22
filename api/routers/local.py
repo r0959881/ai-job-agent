@@ -7,16 +7,23 @@ output/. New CVs and reports are written to output/ as before. None of this
 exists on a server: every route answers 404 unless local mode is on.
 """
 import json
+import os
+import queue
 import sqlite3
+import subprocess
+import sys
+import threading
+import time
 from contextlib import closing
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from api import server_config
 from api.auth import uses_project_files
-from config import DB_PATH, OUTPUT_DIR, RUNS_DIR, relative_to_project
+from config import CODE_ROOT, DB_PATH, OUTPUT_DIR, RUNS_DIR, relative_to_project
 
 router = APIRouter(prefix="/api/local", tags=["local"])
 
@@ -44,9 +51,10 @@ def classify(name):
     lower = name.lower()
     if lower.endswith(".xlsx") and lower.startswith("job_report"):
         return "report"
-    if "_cover_letter_" in lower:
+    stem = lower.rsplit(".", 1)[0]
+    if "_cover_letter_" in lower or stem.endswith("_cl"):
         return "cover_letter"
-    if "_cv_" in lower and lower.endswith(".docx"):
+    if ("_cv_" in lower or stem.endswith("_cv")) and lower.endswith((".docx", ".pdf")):
         return "cv"
     return "other"
 
@@ -172,3 +180,68 @@ def delete_file(name: str, request: Request):
 def status(request: Request):
     _require_local(request)
     return {"output": str(OUTPUT_DIR), "data_file": DATA_FILE, "local": server_config.local_mode()}
+
+
+class AutofillBody(BaseModel):
+    url: str
+    cv_path: str = ""
+    cover_letter_path: str = ""
+
+
+def _output_file(path):
+    """'output/x.pdf' as an existing file inside output/, or "" (never a path outside it)."""
+    if not path:
+        return ""
+    name = path.removeprefix("output/")
+    try:
+        file = _file(name)
+    except HTTPException:
+        return ""
+    return f"output/{file.name}" if file.exists() else ""
+
+
+@router.post("/autofill")
+def autofill(body: AutofillBody, request: Request, timeout: int = 120):
+    """Open a visible browser on this PC that goes to the posting, clicks Apply and fills the form.
+
+    It attaches the CV and cover letter and keeps filling new fields until the window is closed.
+    Nothing is ever submitted: the user checks every field and submits.
+    """
+    _require_local(request)
+    if not body.url.lower().startswith(("http://", "https://")):
+        raise HTTPException(400, "The posting link is not a web address, so it cannot be opened safely.")
+    from api.autofill_worker import RESULT_PREFIX
+
+    command = [sys.executable, "-m", "api.autofill_worker", body.url, _output_file(body.cv_path),
+               _output_file(body.cover_letter_path)]
+    process = subprocess.Popen(command, cwd=CODE_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                               encoding="utf-8", errors="replace", env=os.environ.copy(),
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def reader():
+        for line in process.stdout or []:
+            lines.put(line)
+        lines.put(None)
+
+    threading.Thread(target=reader, daemon=True).start()
+    output: list[str] = []
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            line = lines.get(timeout=1)
+        except queue.Empty:
+            continue
+        if line is None:
+            break
+        if line.startswith(RESULT_PREFIX):
+            result = json.loads(line[len(RESULT_PREFIX):])
+            result["log"] = [entry.strip() for entry in output if entry.strip()]
+            return result
+        output.append(line)
+    tail = "".join(output[-10:]).strip()
+    if "Executable doesn't exist" in tail or "playwright install" in tail:
+        raise HTTPException(500, "Playwright's browser is not installed. Run `python -m playwright install chromium` once.")
+    if "No module named 'playwright'" in tail:
+        raise HTTPException(500, "Playwright is not installed. Run `pip install -r requirements-local.txt`.")
+    raise HTTPException(504, f"The browser did not finish filling the form in {timeout}s. {tail[-300:]}")

@@ -1,4 +1,5 @@
 import os
+import re
 import yaml
 from dotenv import load_dotenv
 from groq import Groq
@@ -6,7 +7,7 @@ import user_scope
 from agent_log import log
 from config import DB_PATH, ENV_PATH, load_resume_file
 from database import connect, record_document
-from generate_doc import create_tailored_cv_docx
+from generate_doc import create_tailored_cv
 from discovery import classify_target_role, get_target_roles
 
 # 1. Load environment variables (.env file)
@@ -73,6 +74,13 @@ def get_job(job_id):
     return job
 
 
+def get_job_description(job_id):
+    conn = connect()
+    row = conn.execute("SELECT description FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    conn.close()
+    return (row[0] if row else "") or ""
+
+
 def generate_tailored_content(job_id, client=None):
     """Ask Groq for the summary and bullets. Raises on API errors.
 
@@ -83,14 +91,59 @@ def generate_tailored_content(job_id, client=None):
         log("❌ Job not found in database!", level="error")
         return None
     title, company, _location, _url = job
-    return tailored_content_for({"title": title, "company": company}, client=client)
+    return tailored_content_for({"title": title, "company": company, "description": get_job_description(job_id)},
+                                client=client)
+
+
+JOB_TEXT_LIMIT = 4500
+
+
+def _experience_list(resume):
+    lines = []
+    for number, entry in enumerate(resume.get("experience") or [], start=1):
+        if isinstance(entry, dict):
+            lines.append(f"[{number}] {entry.get('role', '')} at {entry.get('company', '')} ({entry.get('dates', '')})")
+    return "\n".join(lines) or "(no experience entries)"
+
+
+def parse_tailored(text):
+    """TAGLINE / SUMMARY / SKILLS / BULLETS from the model's answer (older SUMMARY+BULLETS answers too)."""
+    content = {"tagline": "", "summary": "", "skills": [], "bullets": []}
+    section = None
+    for raw_line in (text or "").strip().splitlines():
+        line = raw_line.strip()
+        upper = line.upper()
+        for key in ("TAGLINE", "SUMMARY", "SKILLS"):
+            if upper.startswith(f"{key}:"):
+                value = line[len(key) + 1:].strip()
+                if key == "SKILLS":
+                    content["skills"] = [part.strip(" .*") for part in value.split(",") if part.strip(" .*")]
+                else:
+                    content[key.lower()] = value.strip("\"")
+                section = key
+                break
+        else:
+            if upper.startswith("BULLETS"):
+                section = "BULLETS"
+            elif line.startswith(("- ", "* ", "• ")):
+                content["bullets"].append(line[2:].strip())
+            elif line and section == "SUMMARY" and not content["bullets"]:
+                content["summary"] = f"{content['summary']} {line}".strip()
+    if not content["summary"]:
+        content["summary"] = (text or "").strip()
+    return content
 
 
 def tailored_content_for(job, client=None, resume=None):
-    """The same as generate_tailored_content for a job given as a dict (title, company, role_family)."""
+    """Ask Groq for the catch phrase, summary, skills and bullets for a job given as a dict.
+
+    The job may carry title, company, role_family and description. Raises on API errors.
+    Returns {"tagline", "summary", "skills", "bullets", "role_family", "raw"}, or None without a resume.
+    """
     title, company = job.get("title") or "", job.get("company") or ""
+    description = (job.get("description") or "").strip()[:JOB_TEXT_LIMIT]
     log(f"🤖 Tailoring CV for: {title} at {company}...")
-    role_family = job.get("role_family") or classify_target_role(title)
+    role_family = job.get("role_family") or classify_target_role(title, description)
 
     resume = resume if resume is not None else load_master_resume()
     if not resume:
@@ -98,60 +151,104 @@ def tailored_content_for(job, client=None, resume=None):
 
     role_profile = resume.get("role_profiles", {}).get(role_family or "", {})
     role_names = list(get_target_roles())
+    company_hint = "" if company.startswith("Partner (") or company in {"", "Unknown"} else company
 
     prompt = f"""
-    You are an expert ATS Optimization Agent.
-    Target Job Title: {title}
-    Company: {company}
-    Target role family: {role_family or 'Choose the closest match'}
-    Available role families: {', '.join(role_names)}
+    You are an expert recruiter and ATS optimisation assistant. Tailor a TWO-PAGE CV to this job.
+
+    Job title: {title}
+    Company: {company_hint or "(unknown: do not name a company)"}
+    Job posting:
+    \"\"\"
+    {description or "(no description available: rely on the title)"}
+    \"\"\"
+
+    Target role family: {role_family or 'Choose the closest match'} (options: {_join_choices(role_names)})
     Role focus: {role_profile.get('focus', 'Match the job requirements to the master resume facts.')}
     Priority keywords: {', '.join(role_profile.get('keywords', []))}
 
-    My Master Resume Data:
-    {yaml.dump(resume, default_flow_style=False)}
+    Experience entries (refer to them by number):
+    {_experience_list(resume)}
 
-    Task:
-    1. Identify which target role family best matches the job: {_join_choices(role_names)}.
-    2. Write a 3-sentence professional summary tailored specifically to the {title} role and selected role family.
-    3. Select and rephrase the 4 most relevant work experience bullet points from my master resume to highlight matching skills for {title}.
-    4. CRITICAL RULE: DO NOT invent, fabricate, or assume any experience, skills, company names, or degrees not present in my master resume.
+    Master resume (the only source of facts):
+    {yaml.dump(resume, default_flow_style=False, allow_unicode=True)}
 
-    Format your response EXACTLY as:
-    SUMMARY: <your 3-sentence summary>
+    Write, in the language of the job posting:
+    1. TAGLINE: one catch phrase of at most 14 words that shows motivation for THIS job, naming the role
+       {"and " + company_hint if company_hint else ""} (e.g. "Junior Data Engineer ready to scale Acme's data platform").
+    2. SUMMARY: 2 sentences, at most 55 words, connecting my real experience to what the posting asks for.
+    3. SKILLS: 8 to 12 skills from my resume, most relevant to the posting first, comma separated.
+    4. BULLETS: 4 to 6 achievement bullets rephrased from my experience, the strongest matches first.
+       Start each with the number of the experience entry it comes from, like [1]. At most 28 words each.
+       Wrap the 1-3 terms in each bullet that matter most for this job in **double asterisks**.
+
+    CRITICAL RULES:
+    - Do not invent, embellish or assume any experience, skill, number, company, tool or degree that is not in my
+      master resume. Leave something out rather than make it up.
+    - Copy every number exactly as it is written in the resume (80%, 50+, 12-week...) and keep it attached to the
+      same achievement it belongs to there. Never move a number to a different achievement.
+    - Never state a number of years of experience unless the resume states it.
+
+    Answer EXACTLY in this format and nothing else:
+    TAGLINE: <catch phrase>
+    SUMMARY: <2 sentences>
+    SKILLS: <skill>, <skill>, ...
     BULLETS:
-    - <bullet 1>
-    - <bullet 2>
-    - <bullet 3>
-    - <bullet 4>
+    - [1] <bullet>
+    - [2] <bullet>
     """
 
     client = client or get_client()
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
+        temperature=0.2
     )
 
     tailored_text = response.choices[0].message.content
     log("\n--- Tailored AI Output ---\n")
     log(tailored_text)
-
-    summary = ""
-    bullets = []
-    for line in tailored_text.strip().splitlines():
-        if line.startswith("SUMMARY:"):
-            summary = line.removeprefix("SUMMARY:").strip()
-        elif line.strip().startswith("- "):
-            bullets.append(line.strip()[2:])
-
-    if not summary:
-        summary = tailored_text.strip()
-
-    return {"summary": summary, "bullets": bullets, "role_family": role_family or "", "raw": tailored_text}
+    content = parse_tailored(tailored_text)
+    content["bullets"] = keep_verifiable(content["bullets"], resume)
+    content["summary"] = drop_unverifiable_sentences(content["summary"], resume) or (
+        (resume.get("personal_info") or {}).get("headline") or "")
+    content["tagline"] = drop_unverifiable_sentences(content["tagline"], resume)
+    return {**content, "role_family": role_family or "", "raw": tailored_text}
 
 
-def build_tailored_cv(job_id, summary, bullets, role_family=None, run_id=None):
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _known_numbers(resume):
+    return set(_NUMBER.findall(yaml.dump(resume, allow_unicode=True)))
+
+
+def drop_unverifiable_sentences(text, resume):
+    """Remove sentences that state a number the resume does not contain ("1.5 years of experience")."""
+    known = _known_numbers(resume)
+    sentences = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    kept = [s for s in sentences if all(number in known for number in _NUMBER.findall(s))]
+    if len(kept) < len(sentences):
+        log(f"⚠️ Left out a sentence with a number that is not in the resume: {' '.join(set(sentences) - set(kept))}",
+            level="warning")
+    return " ".join(kept).strip()
+
+
+def keep_verifiable(bullets, resume):
+    """Drop bullets that state a number the resume does not contain (the CV then uses the original bullets)."""
+    known = _known_numbers(resume)
+    kept = []
+    for bullet in bullets:
+        unknown = [number for number in _NUMBER.findall(re.sub(r"^\s*\[\d+\]", "", bullet)) if number not in known]
+        if unknown:
+            log(f"⚠️ Left out a tailored bullet with a number that is not in the resume ({', '.join(unknown)}): {bullet}",
+                level="warning")
+            continue
+        kept.append(bullet)
+    return kept
+
+
+def build_tailored_cv(job_id, summary, bullets, role_family=None, run_id=None, tagline="", skills=None):
     """Write the DOCX from (possibly user-edited) content and link it to the job."""
     job = get_job(job_id)
     if not job:
@@ -159,7 +256,8 @@ def build_tailored_cv(job_id, summary, bullets, role_family=None, run_id=None):
         return None
     title, company, _location, _url = job
     role_family = role_family if role_family is not None else classify_target_role(title)
-    docx_path = create_tailored_cv_docx(company, title, summary, bullets, role_family)
+    docx_path = create_tailored_cv(company, title, summary, bullets, role_family, tagline=tagline,
+                                        skills=skills, job_text=get_job_description(job_id))
     if not docx_path:
         return None
 
@@ -179,7 +277,8 @@ def tailor_cv_for_job(job_id, client=None, run_id=None, raise_errors=False):
         content = generate_tailored_content(job_id, client=client)
         if not content:
             return None
-        return build_tailored_cv(job_id, content["summary"], content["bullets"], content["role_family"], run_id=run_id)
+        return build_tailored_cv(job_id, content["summary"], content["bullets"], content["role_family"], run_id=run_id,
+                                 tagline=content.get("tagline", ""), skills=content.get("skills"))
 
     except Exception as e:
         log(f"❌ Error communicating with Groq API: {e}", level="error", data={"reason": describe_error(e)})

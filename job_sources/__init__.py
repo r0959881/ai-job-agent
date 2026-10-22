@@ -22,6 +22,10 @@ USER_AGENT = (
 COMPANY_BOARD_ATS = ("greenhouse", "lever", "ashby", "recruitee", "smartrecruiters")
 
 
+class SourceUnavailable(RuntimeError):
+    """A source that cannot answer for a while (a spent quota): the run warns once and skips its searches."""
+
+
 @dataclass
 class Search:
     source: str  # registry key, e.g. "linkedin"
@@ -98,6 +102,43 @@ SOURCES = {
         "description": "Recruiter Michael Page in Belgium/Luxembourg, Germany, France, the UK, Ireland, "
                        "Switzerland, Spain, Italy, Poland and Portugal.",
         "covers": lambda region: region["id"] in {"BE", "LU", "DE", "FR", "GB", "IE", "CH", "ES", "IT", "PL", "PT"},
+    },
+    "randstad": {
+        "label": "Randstad / Tempo-Team", "kind": "scraper", "default": True,
+        "description": "Staffing agency Randstad Belgium (Tempo-Team's jobs are on the same site), with full descriptions.",
+        "covers": lambda region: region["id"] == "BE",
+    },
+    "manpower": {
+        "label": "Manpower", "kind": "scraper", "default": True,
+        "description": "Staffing agency Manpower Belgium.",
+        "covers": lambda region: region["id"] == "BE",
+    },
+    "hays": {
+        "label": "Hays", "kind": "scraper", "default": True,
+        "description": "Recruiter Hays Belgium, with full descriptions.",
+        "covers": lambda region: region["id"] == "BE",
+    },
+    "roberthalf": {
+        "label": "Robert Half", "kind": "scraper", "default": True,
+        "description": "Recruiter Robert Half Belgium.",
+        "covers": lambda region: region["id"] == "BE",
+    },
+    "actiris": {
+        "label": "Actiris", "kind": "api", "default": True,
+        "description": "Brussels' public employment service. Lists title, contract and place, not the full text.",
+        "covers": lambda region: region["id"] == "BE",
+    },
+    "forem": {
+        "label": "Le Forem", "kind": "api", "default": True,
+        "description": "Wallonia's public employment service (its open-data feed, updated daily).",
+        "covers": lambda region: region["id"] == "BE",
+    },
+    "websearch": {
+        "label": "Web search", "kind": "api", "default": True,
+        "description": "Job postings anywhere on the web (company career pages, smaller boards) through Brave "
+                       "Search, falling back to Groq web search when Brave's quota runs out. "
+                       "Needs a Brave Search or Groq key.",
+        "covers": lambda region: True,
     },
     "adzuna": {
         "label": "Adzuna", "kind": "api", "default": True, "requires": ["ADZUNA_APP_ID", "ADZUNA_APP_KEY"],
@@ -209,12 +250,13 @@ def in_region(location, region):
     """Make sure a result from a region-scoped search names that region in its location.
 
     Sources such as Indeed Belgium only return Belgian jobs, but their location
-    text can be a bare town ("Malines") that the relevance gate does not know.
+    text can be a bare town ("Malines", "Hasselt") that the relevance gate's allowed
+    locations do not list, so the country is added unless the text already names it.
     """
     if not region or region["id"] == region_catalog.REMOTE:
         return location
     text = (location or "").lower()
-    if any(re.search(rf"\b{re.escape(marker)}\b", text) for marker in region["markers"]):
+    if re.search(rf"\b{re.escape(region['label'].lower())}\b", text):
         return location
     return f"{location}, {region['label']}" if location else region["label"]
 
@@ -229,8 +271,10 @@ def or_query(phrases):
 
 def plan(source_key, ctx):
     """The searches one source would run for this context."""
-    from job_sources import boards, scrapers, sites
+    from job_sources import boards, scrapers, sites, websearch
 
+    if source_key == "websearch":
+        return websearch.plan(ctx)
     if source_key in sites.NAMES:
         return sites.plan(source_key, ctx)
     if source_key in SCRAPERS:

@@ -24,6 +24,13 @@ const GROUPS: { id: string; title: string; description: string; help?: { href: s
     description: "A job search API for 19 countries. Free keys; runs skip Adzuna without them.",
     help: { href: "https://developer.adzuna.com/signup", label: "Get Adzuna API keys" },
   },
+  {
+    id: "brave",
+    title: "Brave Search (optional)",
+    description:
+      "Powers the Web search source. When its quota runs out, web search falls back to Groq (at most 2 searches per run).",
+    help: { href: "https://api-dashboard.search.brave.com/app/keys", label: "Get a Brave Search key" },
+  },
 ];
 
 function SecretRow({ field }: { field: SecretField }) {
@@ -150,7 +157,7 @@ function TestButton({ name }: { name: string }) {
   );
 }
 
-export function SecretsPanel({ groups = ["groq", "adzuna"] }: { groups?: string[] }) {
+export function SecretsPanel({ groups = ["groq", "adzuna", "brave"] }: { groups?: string[] }) {
   const projectFiles = Boolean(useSession().data?.project_files);
   const secrets = useQuery({
     queryKey: keys.secrets,

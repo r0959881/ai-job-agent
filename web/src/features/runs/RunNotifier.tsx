@@ -46,7 +46,11 @@ export function RunNotifier() {
               : run.status === "failed"
                 ? toast.error
                 : toast.warning;
-          show(title, { description, action: { label: "View", onClick: () => navigate(`/runs/${run.id}`) } });
+          // A run that found jobs leads to them on the New jobs page; otherwise to the run's log.
+          const action = run.new
+            ? { label: "See new jobs", onClick: () => navigate("/jobs/new") }
+            : { label: "View", onClick: () => navigate(`/runs/${run.id}`) };
+          show(title, { description, action });
           if (document.hidden && "Notification" in window && Notification.permission === "granted") {
             const note = new Notification(title, { body: description, tag: `run-${run.id}` });
             note.onclick = () => {

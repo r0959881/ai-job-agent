@@ -127,32 +127,35 @@ def test_sign_in_profile_run_job_applied(server, browser):
     page.get_by_text("Documents from this run").wait_for(timeout=90_000)
     playwright.expect(page.get_by_text("Succeeded").first).to_be_visible()
 
-    # 3. The jobs the run found are marked as just added, and the "Added" filters find them
-    for added in ("run", "24h", "1h"):
-        page.goto(f"{base}/jobs?sort=discovered&added={added}")
+    # 3. The jobs the run found are on the New jobs page, the "Added" filters find them, and Jobs
+    #    (older jobs only) points to them
+    for added in ("run", "", "1h"):
+        page.goto(f"{base}/jobs/new?sort=discovered&added={added}")
         page.get_by_role("table").wait_for()
         assert page.get_by_role("row").count() > 1, added
     playwright.expect(page.get_by_role("columnheader", name="Added")).to_be_visible()
     playwright.expect(page.get_by_text("New", exact=True).first).to_be_visible()
+    page.goto(f"{base}/jobs")
+    page.get_by_text("View new jobs").wait_for()
 
     # 4. Open a job that is ready to apply and mark it applied
-    page.goto(f"{base}/jobs?quick=ready")
+    page.goto(f"{base}/jobs/new?quick=ready")
     page.get_by_role("table").wait_for()
     page.get_by_role("row").nth(1).click()
     page.wait_for_url("**/jobs/*")
     page.get_by_role("button", name="I applied").click()
     page.get_by_text("Marked as applied").wait_for()
 
-    # 5. The tailored CV is on this device and previews through the server
+    # 5. The tailored CV (a PDF) is on this device and opens in the browser's PDF viewer
     page.goto(f"{base}/documents")
     page.get_by_role("button", name="Preview").first.click()
-    page.get_by_role("dialog").get_by_text("PROFESSIONAL SUMMARY").wait_for(timeout=20_000)
+    page.get_by_role("dialog").locator("iframe").wait_for(timeout=20_000)  # the PDF in the browser viewer
     assert not errors, errors
 
     # 6. Jobs stay on the device: the server has no job endpoint, and another user sees nothing
     other = sign_in(browser.new_context(viewport={"width": 1280, "height": 900}), base, "other@example.com")
-    other.goto(f"{base}/jobs")
-    other.get_by_text("No jobs yet").wait_for()
+    other.goto(f"{base}/jobs/new")
+    other.get_by_text("No new jobs in the last 24 hours").wait_for()
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -168,7 +171,7 @@ def test_main_pages_have_no_serious_accessibility_violations(server, browser, sc
     if violations := axe_violations(login):
         problems["/login"] = violations
     page = sign_in(context, base, f"a11y-{scheme}@example.com")
-    paths = ["/", "/profile", "/jobs", "/documents", "/runs", "/settings/search", "/settings/integrations",
+    paths = ["/", "/profile", "/jobs", "/jobs/new", "/documents", "/runs", "/settings/search", "/settings/integrations",
              "/settings/storage", "/settings/account", "/onboarding"]
     for path in paths:
         page.goto(base + path)

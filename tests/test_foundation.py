@@ -40,7 +40,7 @@ def test_settings_defaults_match_the_old_constants():
     settings = agent_settings.load()
     assert settings["target_roles"] == discovery.TARGET_ROLES
     assert agent_settings.all_target_keywords(settings) == discovery.TARGET_KEYWORDS
-    assert settings["time_window_hours"] == 48
+    assert settings["time_window_hours"] == 24
     assert agent_settings.gmail_query(settings) == (
         'newer_than:2d {from:linkedin.com from:indeed.com '
         'from:stepstone.be from:jobat.be from:vdab.be from:actiris.brussels}'

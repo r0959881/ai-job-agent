@@ -8,11 +8,12 @@ import {
   RefreshCw,
   Search,
   SkipForward,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   APPLICATION_STATUS_OPTIONS,
@@ -27,7 +28,7 @@ import { DataTable } from "@/components/data-table";
 import { FilterMenu } from "@/components/filter-menu";
 import { useStartRun } from "@/components/layout/RunControl";
 import { EmptyState, ErrorState, SkeletonRows } from "@/components/states";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox, Select } from "@/components/ui/controls";
 import { Badge, Input } from "@/components/ui/primitives";
 import { Tooltip } from "@/components/ui/overlays";
@@ -43,13 +44,21 @@ const STATUS_OPTIONS = [
   { value: "rejected", label: "Filtered out" },
 ];
 
-const ADDED_OPTIONS = [
-  { value: "any", label: "Added any time" },
-  { value: "1h", label: "Added in the last hour" },
-  { value: "24h", label: "Added in the last 24 hours" },
-  { value: "7d", label: "Added in the last 7 days" },
-  { value: "run", label: "Found by the latest run" },
-];
+/** Jobs stay on the New jobs page this long, then move to Jobs (the same rule as the job store). */
+const NEW_JOB_HOURS = 24;
+
+// New jobs are all from the last 24 hours, and Jobs holds only older ones, so each page offers what still narrows it.
+const ADDED_OPTIONS = {
+  new: [
+    { value: "any", label: "Added in the last 24 hours" },
+    { value: "1h", label: "Added in the last hour" },
+    { value: "run", label: "Found by the latest run" },
+  ],
+  all: [
+    { value: "any", label: "Added any time" },
+    { value: "7d", label: "Added in the last 7 days" },
+  ],
+};
 
 /** When the job came into the app (not when the employer posted it). */
 function AddedCell({ value, seen }: { value: string; seen?: string }) {
@@ -196,12 +205,41 @@ function columns(): ColumnDef<Job, unknown>[] {
   ];
 }
 
-export default function JobsPage() {
+/** Jobs added in the last 24 hours, on a page of their own. */
+export function NewJobsPage() {
+  return <JobsPage view="new" />;
+}
+
+/** Above the Jobs list: how many jobs are on the New jobs page instead. */
+function NewJobsBanner() {
+  const fresh = useQuery({
+    queryKey: keys.jobs("new=only&page_size=1"),
+    queryFn: () => api.get<JobsPageData>("/api/jobs?new=only&page=1&page_size=1"),
+  });
+  const count = fresh.data?.total ?? 0;
+  if (!count) return null;
+  return (
+    <Link
+      to="/jobs/new"
+      className="mb-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-accent px-3 py-2 text-body hover:bg-accent/80"
+    >
+      <Sparkles className="size-4 text-primary" aria-hidden />
+      <span>
+        <span className="font-medium tabular">{count}</span> new job{count === 1 ? "" : "s"} found in the last{" "}
+        {NEW_JOB_HOURS} hours. They move here after {NEW_JOB_HOURS} hours.
+      </span>
+      <span className="ml-auto font-medium text-primary">View new jobs →</span>
+    </Link>
+  );
+}
+
+export default function JobsPage({ view = "all" }: { view?: "all" | "new" }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const startRun = useStartRun();
-  const { filters, update, clear, activeCount, apiQuery } = useJobFilters();
+  const { filters, update, clear, activeCount, apiQuery: filterQuery } = useJobFilters();
+  const apiQuery = `${filterQuery}&new=${view === "new" ? "only" : "hide"}`;
   const [search, setSearch] = React.useState(filters.q);
   const [selection, setSelection] = React.useState<RowSelectionState>({});
   const cols = React.useMemo(columns, []);
@@ -254,10 +292,20 @@ export default function JobsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Jobs"
-        description="Every job the agent has found. Open one to get everything you need to apply."
-      />
+      {view === "new" ? (
+        <PageHeader
+          title="New jobs"
+          description={`Jobs found in the last ${NEW_JOB_HOURS} hours. After ${NEW_JOB_HOURS} hours each one moves to Jobs with the rest.`}
+        />
+      ) : (
+        <>
+          <PageHeader
+            title="Jobs"
+            description={`Every job the agent found more than ${NEW_JOB_HOURS} hours ago. Open one to get everything you need to apply.`}
+          />
+          <NewJobsBanner />
+        </>
+      )}
       <div className="mb-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-full max-w-sm">
@@ -335,7 +383,7 @@ export default function JobsPage() {
               aria-label="Added to the app"
               value={filters.added || "any"}
               onValueChange={(v) => update({ added: v === "any" ? "" : (v as typeof filters.added) })}
-              options={ADDED_OPTIONS}
+              options={ADDED_OPTIONS[view]}
               className="h-8 text-caption"
             />
           </div>
@@ -439,12 +487,35 @@ export default function JobsPage() {
               </Button>
             }
           />
+        ) : view === "new" ? (
+          <EmptyState
+            icon={Sparkles}
+            title={`No new jobs in the last ${NEW_JOB_HOURS} hours`}
+            description="Run the agent to look for jobs posted since the last run. Older jobs are on the Jobs page."
+            action={
+              <div className="flex gap-2">
+                <Button onClick={startRun}>Run agent</Button>
+                <Link to="/jobs" className={buttonVariants({ variant: "outline" })}>
+                  All jobs
+                </Link>
+              </div>
+            }
+          />
         ) : (
           <EmptyState
             icon={Briefcase}
-            title="No jobs yet"
-            description="Run the agent to search LinkedIn, Indeed, national job sites and more for your roles."
-            action={<Button onClick={startRun}>Run agent</Button>}
+            title="No older jobs yet"
+            description={`Jobs found in the last ${NEW_JOB_HOURS} hours are on the New jobs page; they move here after that.`}
+            action={
+              <div className="flex gap-2">
+                <Link to="/jobs/new" className={buttonVariants()}>
+                  New jobs
+                </Link>
+                <Button variant="outline" onClick={startRun}>
+                  Run agent
+                </Button>
+              </div>
+            }
           />
         ))}
       {data && data.total > 0 && (

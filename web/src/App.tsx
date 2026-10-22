@@ -13,6 +13,7 @@ import { ThemeProvider, useTheme } from "@/lib/theme";
 const DashboardPage = React.lazy(() => import("@/pages/DashboardPage"));
 const ProfilePage = React.lazy(() => import("@/pages/ProfilePage"));
 const JobsPage = React.lazy(() => import("@/pages/JobsPage"));
+const NewJobsPage = React.lazy(() => import("@/pages/JobsPage").then((module) => ({ default: module.NewJobsPage })));
 const JobDetailPage = React.lazy(() => import("@/pages/JobDetailPage"));
 const DocumentsPage = React.lazy(() => import("@/pages/DocumentsPage"));
 const RunsPage = React.lazy(() => import("@/pages/RunsPage"));
@@ -59,6 +60,7 @@ export const routes = [
           { index: true, element: page(DashboardPage) },
           { path: "profile", element: page(ProfilePage) },
           { path: "jobs", element: page(JobsPage) },
+          { path: "jobs/new", element: page(NewJobsPage) },
           { path: "jobs/:id", element: page(JobDetailPage) },
           { path: "documents", element: page(DocumentsPage) },
           { path: "runs", element: page(RunsPage) },

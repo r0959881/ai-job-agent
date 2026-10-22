@@ -5,7 +5,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from api.services import resume_store
-from api.services.preview import sample_cv_html
+from api.services.preview import sample_cv_pdf
 
 router = APIRouter(prefix="/api/resume", tags=["resume"])
 
@@ -117,7 +117,10 @@ def preview(body: PreviewRequest):
         resume = resume_store.validate(body.data)
     except resume_store.ResumeInvalid as exc:
         raise _invalid(exc) from exc
-    return {"html": sample_cv_html(resume_store.to_plain(resume), body.role_family)}
+    import base64
+
+    pdf = sample_cv_pdf(resume_store.to_plain(resume), body.role_family)
+    return {"pdf": base64.b64encode(pdf).decode("ascii")}
 
 
 async def _read_upload(file: UploadFile, max_bytes=MAX_UPLOAD):

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 import agent_settings
 import job_sources
+from job_sources import websearch
 import regions
 import user_scope
 from agent_log import check_cancelled, log, step
@@ -313,6 +314,10 @@ def run_searches(step_name, searches, settings, ctx):
             log(f"🔍 {search.name}: {search.label}")
             try:
                 items = search.fetch()
+            except job_sources.SourceUnavailable as error:  # a spent quota: say so once, skip the rest
+                errors += 1
+                gave_up.add(search.source)
+                log(f"⚠️ {search.name}: {error} Skipping its searches in this run.", level="warning")
             except Exception as error:  # one broken source must not stop the run
                 errors += 1
                 failures[search.source] = failures.get(search.source, 0) + 1
@@ -358,7 +363,10 @@ def _run_group(step_name, sources, settings, ctx):
     if not searches:
         reasons = [
             f"{job_sources.SOURCES[key]['label']}: no companies followed yet (Settings → Search)"
-            if key == "company_boards" else f"{job_sources.SOURCES[key]['label']}: not available in the selected regions"
+            if key == "company_boards" else
+            f"{job_sources.SOURCES[key]['label']}: add a Brave Search or Groq key (Settings → Integrations)"
+            if key == "websearch" and not websearch.configured()
+            else f"{job_sources.SOURCES[key]['label']}: not available in the selected regions"
             for key in chosen
         ]
         step(step_name, "skipped", f"{title} skipped. " + "; ".join(reasons) + ".")

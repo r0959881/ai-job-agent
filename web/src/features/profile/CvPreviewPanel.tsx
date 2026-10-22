@@ -5,6 +5,7 @@ import { ErrorState, SkeletonRows } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/controls";
 import { Card } from "@/components/ui/primitives";
+import { PdfFrame } from "@/features/documents/PdfFrame";
 import { api } from "@/lib/api";
 import type { Resume } from "@/lib/types";
 
@@ -31,7 +32,7 @@ export function CvPreviewPanel({
   const preview = useQuery({
     queryKey: ["resume-preview", role, debounced],
     queryFn: () =>
-      api.post<{ html: string }>("/api/resume/preview", { data: debounced, role_family: role || null }),
+      api.post<{ pdf: string }>("/api/resume/preview", { data: debounced, role_family: role || null }),
     placeholderData: (previous) => previous,
     staleTime: Infinity,
   });
@@ -62,11 +63,13 @@ export function CvPreviewPanel({
         {preview.isPending && <SkeletonRows rows={10} />}
         {preview.isError && <ErrorState error={preview.error} onRetry={() => preview.refetch()} />}
         {preview.data && (
-          <div
-            className="doc-preview rounded-md bg-card p-6 text-card-foreground shadow-card"
-            aria-busy={preview.isFetching}
-            dangerouslySetInnerHTML={{ __html: preview.data.html }}
-          />
+          <div aria-busy={preview.isFetching}>
+            <PdfFrame
+              base64={preview.data.pdf}
+              title="CV preview"
+              className="h-[calc(100vh-14rem)] min-h-[480px] w-full rounded-md border bg-card"
+            />
+          </div>
         )}
       </div>
     </Card>

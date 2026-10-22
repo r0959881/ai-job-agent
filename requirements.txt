@@ -4,6 +4,7 @@ python-dotenv
 PyYAML
 requests
 python-docx
+reportlab>=4.2,<5  # the tailored CV is a PDF
 openpyxl
 beautifulsoup4
 # LinkedIn, Indeed and Glassdoor search (job_sources/scrapers.py)

@@ -1,7 +1,8 @@
 # AI Job Agent
 
 Finds early-career jobs in the countries you pick (LinkedIn, Indeed, StepStone, Jobat,
-VDAB, Michael Page, national job exchanges, remote boards, company career pages and
+VDAB, Michael Page, Randstad, Manpower, Hays, Robert Half, Actiris, Le Forem, web search,
+national job exchanges, remote boards, company career pages and
 Adzuna), filters them by role, seniority, location and language, and writes a tailored
 CV for each one with Groq.
 
@@ -114,8 +115,12 @@ language it is written in must be one you picked. Very short listings are kept.
 | LinkedIn, Indeed, Glassdoor (via [JobSpy](https://github.com/speedyapply/JobSpy)) | No | LinkedIn everywhere; Indeed and Glassdoor per country. Glassdoor is off by default because it often blocks |
 | StepStone | No | Belgium, Germany (search snippets; StepStone blocks its detail pages) |
 | VDAB | No | Belgium (Flanders), with full descriptions and required languages |
-| Jobat | No | Belgium |
+| Jobat | No | Belgium (also Vacature, which now redirects to Jobat) |
 | Michael Page | No | Belgium/Luxembourg, Germany, France, UK, Ireland, Switzerland, Spain, Italy, Poland, Portugal |
+| Randstad / Tempo-Team, Manpower, Hays, Robert Half | No | Belgium (Tempo-Team now redirects to Randstad) |
+| Actiris | No | Belgium (Brussels' public employment service; title, contract and place only) |
+| Le Forem | No | Belgium (Wallonia's public employment service, via its open-data feed) |
+| Web search | Brave Search key, or the Groq key | Postings on company career sites (Greenhouse, Lever, Ashby, Teamtailor, Workday…), any region. Falls back to Groq web search, at most 2 searches per run, when Brave's quota runs out |
 | Bundesagentur für Arbeit | No | Germany |
 | Arbetsförmedlingen (JobTech) | No | Sweden |
 | Arbeitnow | No | Germany, Austria, Switzerland, remote |

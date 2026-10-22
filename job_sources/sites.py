@@ -1,10 +1,15 @@
-"""Job sites read from their own search pages: StepStone, VDAB, Michael Page and Jobat.
+"""Job sites read from their own search pages: StepStone, VDAB, Michael Page, Jobat, the
+staffing agencies (Randstad, Manpower, Hays, Robert Half) and the public employment
+services of Brussels (Actiris) and Wallonia (Le Forem).
 
 None of them has a public API, so each adapter reads what the site's own web
-page uses: StepStone's embedded result JSON, VDAB's search service, and the
-HTML (with schema.org JobPosting data) of Michael Page and Jobat. Jobat refuses
-plain HTTP clients, so it is read with curl_cffi's Chrome fingerprint. Detail pages
-are only fetched for results the relevance gate could keep, once per run.
+page uses: StepStone's embedded result JSON, VDAB's and Actiris's search services,
+Le Forem's open-data feed, and the HTML (with schema.org JobPosting data where the
+site has it) of the others. Jobat and the agencies refuse plain HTTP clients, so they
+are read with curl_cffi's Chrome fingerprint. Detail pages are only fetched for
+results the relevance gate could keep, once per run.
+
+Tempo-Team now redirects to Randstad and Vacature to Jobat, so those brands are covered.
 """
 import json
 import re
@@ -15,7 +20,8 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from job_sources import USER_AGENT, Search, covered_regions, in_region, plain_text
+from job_sources import (USER_AGENT, Search, SourceUnavailable, covered_regions, in_region, is_fresh, plain_text,
+                         timestamp)
 
 TIMEOUT = 30
 DETAIL_PAUSE = 0.3  # seconds between detail pages, to stay polite
@@ -38,6 +44,12 @@ VDAB_API = "https://www.vdab.be/rest/vindeenjob/v4"
 VDAB_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json", "Content-Type": "application/json",
                 "vej-key-monitor": "b277002f-e1fa-4fc5-868a-fdab633c3851"}
 JOBAT = "https://www.jobat.be"
+RANDSTAD = "https://www.randstad.be"
+MANPOWER = "https://www.manpower.be"
+HAYS = "https://www.hays.be"
+ROBERT_HALF = "https://www.roberthalf.com"
+ACTIRIS = "https://www.actiris.brussels"
+FOREM_API = "https://www.odwb.be/api/explore/v2.1/catalog/datasets/offres-d-emploi-forem/records"
 
 _STEPSTONE_STATE = re.compile(r'window\.__PRELOADED_STATE__\["app-unifiedResultlist"\]\s*=\s*(\{.*?\});\s*\n', re.S)
 _JSON_LD = re.compile(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', re.S)
@@ -305,10 +317,327 @@ def fetch_jobat(query, ctx, region, cache):
     return jobs
 
 
+# --- Detail pages shared by the agencies and web search --------------------------------------
+
+def posting_item(posting, url, region=None):
+    """A schema.org JobPosting as a normalised item."""
+    places = posting.get("jobLocation") or {}
+    place = places[0] if isinstance(places, list) and places else places
+    address = (place.get("address") if isinstance(place, dict) else None) or {}
+    if isinstance(address, str):
+        address = {"addressLocality": address}
+    location = ", ".join(dict.fromkeys(filter(None, [address.get("addressLocality"), address.get("addressRegion")])))
+    if str(posting.get("jobLocationType") or "").upper() == "TELECOMMUTE":
+        location = f"{location} (Remote)".strip()
+    organisation = posting.get("hiringOrganization") or {}
+    parts = [plain_text(posting.get(key)) for key in ("description", "responsibilities", "qualifications", "skills")]
+    employment = posting.get("employmentType")
+    return {
+        "title": plain_text(posting.get("title")),
+        "company_name": organisation.get("name", "") if isinstance(organisation, dict) else str(organisation),
+        "description": "\n\n".join(dict.fromkeys(part for part in parts if part)),
+        "location": in_region(location, region),
+        "url": url,
+        "created": posting.get("datePosted", ""),
+        "contract_type": ", ".join(employment) if isinstance(employment, list) else str(employment or ""),
+    }
+
+
+def page_details(url):
+    """A job page as an item: its JobPosting data, or else its heading and main text."""
+    page = _get(url, browser=True)
+    posting = job_posting(page)
+    if posting:
+        return posting_item(posting, url)
+    soup = BeautifulSoup(page, "html.parser")
+    for node in soup.select("script, style, noscript, header, footer, nav, form"):
+        node.decompose()
+    heading = soup.find("h1")
+    meta = soup.find("meta", attrs={"name": "description"})
+    main = soup.select_one("main") or soup.body or soup
+    text = "\n\n".join(filter(None, [meta.get("content", "") if meta else "", main.get_text("\n", strip=True)]))
+    return {"title": heading.get_text(" ", strip=True) if heading else "", "description": text[:8000]}
+
+
+# A vacancy page that says the job is gone ("helaas, deze vacature is afgesloten").
+_CLOSED = re.compile(r"afgesloten|niet meer beschikbaar|no longer available|n'est plus disponible|has expired|"
+                     r"vacature is verlopen|offre (?:a )?expir", re.I)
+OLDER_IN_A_ROW = 3  # newest-first lists: stop after this many postings older than the run's window
+
+
+def _detail_jobs(links, company, ctx, region, cache, newest_first=False):
+    """Items for detail-page links: (url, title from the result list or '').
+
+    With `newest_first` the links are ordered newest first, so reading stops once postings fall
+    outside the run's window instead of opening every result.
+    """
+    jobs, older = [], 0
+    for url, title in links:
+        job = {"title": title, "company_name": company, "description": "", "location": in_region("", region),
+               "url": url, "created": ""}
+        if not (title and _excluded(title, ctx)):
+            detail = cache.get(url, lambda url=url: page_details(url))
+            if detail:
+                job.update({key: value for key, value in detail.items() if value})
+                job["location"] = in_region(job["location"], region)
+        if newest_first and job["created"]:
+            older = 0 if is_fresh(job, ctx.cutoff) else older + 1
+            if older >= OLDER_IN_A_ROW:
+                break
+        if job["title"] and not _CLOSED.search(job["title"]) and not _excluded(job["title"], ctx):
+            jobs.append(job)
+        if len(jobs) >= ctx.results_per_search:
+            break
+    return jobs
+
+
+def _by_number(links):
+    """Links ending in the site's job number, highest (newest) first: the sites list by relevance only."""
+    return sorted(links, key=lambda url: int(re.search(r"(\d+)$", url).group(1)), reverse=True)
+
+
+def _links(page, base, pattern):
+    """Distinct absolute links matching `pattern`, without query strings, in page order."""
+    found = re.findall(pattern, page)
+    return list(dict.fromkeys(urljoin(base, link.split("?")[0]) for link in found))
+
+
+# --- Staffing agencies ----------------------------------------------------------------------
+
+RANDSTAD_SITEMAPS = (f"{RANDSTAD}/sitemaps/jobs/nl/sitemap-jobdetails.xml",
+                     f"{RANDSTAD}/sitemaps/jobs/fr/sitemap-jobdetails.xml")
+SITEMAP_CACHE_SECONDS = 600
+_randstad_sitemap = {"at": 0.0, "jobs": {}}  # job url -> last modified (ISO)
+
+
+def randstad_recent(ctx):
+    """Randstad job links changed within the run's window, from its sitemaps (about 1,500 jobs with dates).
+
+    Its search lists by relevance and its result cards carry no date, so the sitemap is the way
+    to find today's jobs. It is read once and kept a few minutes (each web-app search is its own request).
+    """
+    if time.monotonic() - _randstad_sitemap["at"] > SITEMAP_CACHE_SECONDS:
+        jobs = {}
+        for url in RANDSTAD_SITEMAPS:
+            try:
+                xml = _get(url, browser=True)
+            except Exception:  # curl_cffi's errors; a missing language sitemap only costs its jobs
+                continue
+            for loc, modified in re.findall(r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", xml):
+                jobs[loc.strip()] = modified.strip()
+        _randstad_sitemap.update(at=time.monotonic(), jobs=jobs)
+    since = ctx.cutoff
+    return {url for url, modified in _randstad_sitemap["jobs"].items()
+            if (timestamp(modified) or 0) >= since}
+
+
+def fetch_randstad(query, ctx, region, cache):
+    """Randstad (and Tempo-Team, which redirects to it): today's jobs from its sitemap, then their JobPosting data.
+
+    A job counts for the search when the site's own search lists it, or when the search words are
+    in its title (the link starts with it: /werknemers/jobs/junior-data-analyst_mechelen_<id>/).
+    """
+    recent = randstad_recent(ctx)
+    page = _get(f"{RANDSTAD}/werknemers/jobs/q-{slug(query)}/", browser=True)
+    listed = _links(page, RANDSTAD, r'href="(/werknemers/jobs/[a-z0-9-]+_[a-z0-9-]+_[0-9a-f-]{36}/)"')
+    words = slug(query).split("-")
+    titled = [url for url in sorted(recent)
+              if all(word in url.split("/werknemers/jobs/")[-1].split("_")[0].split("-") for word in words)]
+    links = list(dict.fromkeys([url for url in listed if url in recent] + titled))
+    return _detail_jobs([(url, "") for url in links], "Randstad", ctx, region, cache)
+
+
+def fetch_manpower(query, ctx, region, cache):
+    """Manpower: every result page, newest job number first (its pages list by relevance)."""
+    links = []
+    for page_number in (1, 2, 3):
+        page = _get(f"{MANPOWER}/nl/vacatures", {"query": query, "page": page_number}, browser=True)
+        found = _links(page, MANPOWER, r'href="(/nl/vacature/[a-z0-9-]+-\d+)"')
+        if not found:
+            break
+        links += found
+    return _detail_jobs([(url, "") for url in _by_number(dict.fromkeys(links))], "Manpower", ctx, region, cache,
+                        newest_first=True)
+
+
+def fetch_hays(query, ctx, region, cache):
+    """Hays: every result (about ten). Its job numbers do not follow the posting date, so all are read."""
+    page = _get(f"{HAYS}/en/job-search/{slug(query)}-jobs", browser=True)
+    links = _links(page, HAYS, r'href="([^"]*/job-detail/[^"]+_\d+)[?"]')
+    return _detail_jobs([(url, "") for url in links], "Hays", ctx, region, cache)
+
+
+def _js_unescape(match):
+    code = match.group(1)
+    if code[0] in "xu":
+        return chr(int(code[1:], 16))
+    return {"n": "\n", "t": "\t", "r": "\r"}.get(code, code)
+
+
+def robert_half_jobs(page):
+    """The search results Robert Half embeds in its page: a JSON list inside a JavaScript string."""
+    start = page.find("\\x22jobs\\x22:[")
+    if start < 0:
+        if "\\x22found\\x22:\\x220\\x22" in page:  # a search without results has no job list at all
+            return []
+        raise ValueError("Robert Half changed its result page (no embedded job list found).")
+    escaped = page[start:start + 3_000_000]
+    text = re.sub(r"\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|.)", _js_unescape, escaped[escaped.find("["):])
+    jobs, _end = json.JSONDecoder().raw_decode(text)
+    return [job for job in jobs if isinstance(job, dict)]
+
+
+def fetch_robert_half(query, ctx, region, _cache=None):
+    """Robert Half: its page embeds every result with date, city and full description, so no page is opened."""
+    page = _get(f"{ROBERT_HALF}/be/en/jobs/all/{slug(query)}", browser=True)
+    jobs = []
+    for job in robert_half_jobs(page):
+        title = plain_text(job.get("jobtitle"))
+        if not title or _excluded(title, ctx):
+            continue
+        jobs.append({
+            "title": title, "company_name": "Robert Half",
+            "description": plain_text(job.get("description")),
+            "location": in_region(job.get("city") or "", region),
+            "url": job.get("job_detail_url") or "",
+            "created": job.get("date_posted") or "",
+            "contract_type": job.get("emptype") or "",
+        })
+    jobs.sort(key=lambda job: job["created"], reverse=True)
+    return jobs[:ctx.results_per_search]
+
+
+# --- Public employment services: Actiris (Brussels) and Le Forem (Wallonia) ----------------
+
+def fetch_actiris(query, ctx, region, _cache=None):
+    """Actiris's own search service. Its offers list title, contract and postcode, not the full text."""
+    body = {"offreFilter": {"texte": query}, "pageOption": {"page": 1, "pageSize": min(ctx.results_per_search, 50)},
+            "searchParams": {}}
+    from curl_cffi import requests as browser_requests
+
+    response = browser_requests.post(f"{ACTIRIS}/api/Offer/GetAllOffers", json=body, headers={"Accept-Language": "nl"},
+                                     impersonate="chrome", timeout=TIMEOUT)
+    response.raise_for_status()
+    jobs = []
+    for offer in response.json().get("offers") or []:
+        title = offer.get("titreNl") or offer.get("titreFr") or ""
+        if not title or not offer.get("reference"):
+            continue
+        place = " ".join(filter(None, [offer.get("codePostal"), offer.get("communeNl") or offer.get("communeFr")]))
+        contract = offer.get("typeContratLibelle") or offer.get("typeContrat") or ""
+        jobs.append({
+            "title": title, "company_name": offer.get("employer") or "Via Actiris",
+            "description": "\n".join(filter(None, [title, f"Contract: {contract}" if contract else ""])),
+            "location": in_region(place, region),
+            "url": f"{ACTIRIS}/nl/burgers/jobadvertentie/?reference={offer['reference']}&type={offer.get('typeOffer', '')}",
+            "created": offer.get("dateCreation", ""), "contract_type": contract,
+        })
+    return jobs
+
+
+FOREM_CACHE_SECONDS = 600
+FOREM_RETRIES = 3
+_forem_feeds = {}  # where clause -> (fetched at, offers)
+_forem_quota = {"reset": None}  # when the portal's daily quota for anonymous users is spent: its reset time
+
+
+class ForemQuotaReached(SourceUnavailable):
+    pass
+
+
+def _forem_reset_text(reset):
+    return reset.astimezone().strftime("%H:%M") if reset else "midnight UTC"
+
+
+def _forem_get(params):
+    """One portal request, waiting and retrying when it answers 429 for a burst of requests.
+
+    The portal also allows 10,000 anonymous requests a day (counted per network, so a shared
+    connection can spend it). Once that is spent no request is sent until it resets.
+    """
+    reset = _forem_quota["reset"]
+    if reset and datetime.now(UTC) < reset:
+        raise ForemQuotaReached(f"Le Forem's daily limit is reached; it resets at {_forem_reset_text(reset)}.")
+    for attempt in range(FOREM_RETRIES + 1):
+        response = requests.get(FOREM_API, params=params, headers=BROWSER_HEADERS, timeout=TIMEOUT)
+        if response.status_code == 429:
+            try:
+                body = response.json()
+            except ValueError:
+                body = {}
+            if isinstance(body, dict) and body.get("reset_time"):  # the daily quota, not a burst
+                reset = datetime.fromisoformat(body["reset_time"].replace("Z", "+00:00"))
+                _forem_quota["reset"] = reset
+                raise ForemQuotaReached(f"Le Forem's open-data portal allows {body.get('call_limit', 10000)} "
+                                        f"requests a day and that limit is reached; it resets at "
+                                        f"{_forem_reset_text(reset)}.")
+        if response.status_code != 429 or attempt == FOREM_RETRIES:
+            response.raise_for_status()
+            return response.json().get("results") or []
+        wait = response.headers.get("Retry-After", "")
+        time.sleep(min(float(wait) if wait.replace(".", "", 1).isdigit() else 2.0 * 2 ** attempt, 30))
+    return []
+
+
+def forem_offers(ctx):
+    """The recent offers matching any of the run's search phrases, fetched once and shared by its searches.
+
+    One request per phrase made the portal answer "429 Too Many Requests", so the run's phrases go
+    into one query. The result is kept for a few minutes, because the web app sends each search of a
+    run as its own request.
+    """
+    since = (datetime.now(UTC) - timedelta(days=_age_days(ctx))).date().isoformat()
+    phrases = " OR ".join(f'search("{query.replace(chr(34), "")}")' for query in ctx.queries())
+    where = f"({phrases}) AND datedebutdiffusion >= date'{since}'"
+    fetched_at, offers = _forem_feeds.get(where, (0.0, None))
+    if offers is None or time.monotonic() - fetched_at > FOREM_CACHE_SECONDS:
+        offers = _forem_get({"where": where, "order_by": "datedebutdiffusion desc", "limit": 100})
+        _forem_feeds[where] = (time.monotonic(), offers)
+    return offers
+
+
+def _forem_phrase(offer, phrases):
+    """The search phrase an offer belongs to: the one sharing most words with it, else the first.
+
+    The portal's search also matches translations ("Analyste de données" for "data analyst"), so
+    every offer it returned is kept; this only decides which of the run's searches reports it.
+    """
+    text = " ".join(str(offer.get(key) or "") for key in ("titreoffre", "metier")).lower()
+    overlap = [sum(word in text for word in re.findall(r"\w+", phrase.lower())) for phrase in phrases]
+    return phrases[overlap.index(max(overlap))] if phrases else ""
+
+
+def fetch_forem(query, ctx, region, _cache=None):
+    """Le Forem's job offers, from the Walloon open-data portal (updated daily)."""
+    phrases = ctx.queries()
+    mine = [offer for offer in forem_offers(ctx) if _forem_phrase(offer, phrases) == query]
+    jobs = []
+    for offer in mine[:ctx.results_per_search]:
+        details = [
+            ("Occupation", offer.get("metier")), ("Contract", offer.get("typecontrat")),
+            ("Working hours", offer.get("regimetravail")), ("Experience", offer.get("experiencerequise")),
+            ("Education", ", ".join(offer.get("niveauxetudes") or [])),
+            ("Required languages", ", ".join(offer.get("langues") or [])),
+            ("Sector", ", ".join(offer.get("secteurs") or [])),
+        ]
+        jobs.append({
+            "title": offer.get("titreoffre", ""), "company_name": offer.get("nomemployeur") or "Via Le Forem",
+            "description": "\n".join(f"{label}: {value}" for label, value in details if value),
+            "location": in_region(", ".join((offer.get("lieuxtravaillocalite") or [])[:2]), region),
+            "url": offer.get("url") or f"https://www.leforem.be/recherche-offres/offre-detail/{offer.get('numerooffreforem')}",
+            "created": offer.get("datedebutdiffusion", ""), "contract_type": offer.get("typecontrat") or "",
+        })
+    return jobs
+
+
 # --- Planning ------------------------------------------------------------------------------
 
-NAMES = {"stepstone": "StepStone", "vdab": "VDAB", "michaelpage": "Michael Page", "jobat": "Jobat"}
-FETCHERS = {"stepstone": fetch_stepstone, "vdab": fetch_vdab, "michaelpage": fetch_michael_page, "jobat": fetch_jobat}
+NAMES = {"stepstone": "StepStone", "vdab": "VDAB", "michaelpage": "Michael Page", "jobat": "Jobat",
+         "randstad": "Randstad", "manpower": "Manpower", "hays": "Hays", "roberthalf": "Robert Half",
+         "actiris": "Actiris", "forem": "Le Forem"}
+FETCHERS = {"stepstone": fetch_stepstone, "vdab": fetch_vdab, "michaelpage": fetch_michael_page, "jobat": fetch_jobat,
+            "randstad": fetch_randstad, "manpower": fetch_manpower, "hays": fetch_hays,
+            "roberthalf": fetch_robert_half, "actiris": fetch_actiris, "forem": fetch_forem}
 
 
 def search(source, query, ctx, region, cache):

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DocumentDownload } from "@/features/documents/DocumentDownload";
 import {
+  Bot,
   CheckCircle2,
   Circle,
   Download,
@@ -19,9 +20,11 @@ import { StringListEditor } from "@/components/sortable";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/controls";
 import { Badge, Card, Input, Textarea } from "@/components/ui/primitives";
+import { useConfirm } from "@/components/confirm";
 import { DocumentPreviewDialog } from "@/features/documents/DocumentPreviewDialog";
 import { humanize } from "@/features/profile/schema";
-import { api } from "@/lib/api";
+import { api, serverRequest } from "@/lib/api";
+import { useSession } from "@/lib/session";
 import { keys } from "@/lib/queries";
 import type { DocumentItem, JobDetail, ResumeResponse, TailoredContent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -123,25 +126,60 @@ function CvEditor({ job, onDone }: { job: JobDetail; onDone: (job: JobDetail) =>
     return (
       <Button variant="outline" size="sm" onClick={() => draft.mutate()} loading={draft.isPending}>
         <Pencil />{" "}
-        {draft.isPending ? "Asking Groq (about 10 seconds)…" : "Edit summary & bullets before generating"}
+        {draft.isPending ? "Asking Groq (about 10 seconds)…" : "Edit the CV text before generating"}
       </Button>
     );
   }
   return (
     <Card className="space-y-4 p-4">
       <p className="text-caption text-muted-foreground">
-        Groq drafted this from your resume. Edit anything, then build the Word file. Only facts from your
-        resume are used.
+        Groq drafted this from your resume for this job. Edit anything, then build the one-page Word file.
+        Only facts from your resume are used. Put <span className="font-mono">**double asterisks**</span>{" "}
+        around a term to set it in bold.
       </p>
+      <Field
+        label="Catch phrase"
+        htmlFor="cv-tagline"
+        description="Shown under your name. Name the role and the company to show your motivation."
+      >
+        <Input
+          id="cv-tagline"
+          value={content.tagline ?? ""}
+          maxLength={140}
+          onChange={(e) => setContent({ ...content, tagline: e.target.value })}
+        />
+      </Field>
       <Field label="Professional summary" htmlFor="cv-summary">
         <Textarea
           id="cv-summary"
-          rows={4}
+          rows={3}
           value={content.summary}
           onChange={(e) => setContent({ ...content, summary: e.target.value })}
         />
       </Field>
-      <Field label="Role-matched highlights">
+      <Field
+        label="Key skills for this role"
+        htmlFor="cv-skills"
+        description="Most relevant first, comma separated. Only skills from your profile are used."
+      >
+        <Input
+          id="cv-skills"
+          value={(content.skills ?? []).join(", ")}
+          onChange={(e) =>
+            setContent({
+              ...content,
+              skills: e.target.value
+                .split(",")
+                .map((skill) => skill.trim())
+                .filter(Boolean),
+            })
+          }
+        />
+      </Field>
+      <Field
+        label="Experience bullets"
+        description="[1] puts a bullet under your first (latest) experience entry, [2] under the second, and so on."
+      >
         <StringListEditor
           value={content.bullets}
           onChange={(bullets) => setContent({ ...content, bullets })}
@@ -161,8 +199,101 @@ function CvEditor({ job, onDone }: { job: JobDetail; onDone: (job: JobDetail) =>
   );
 }
 
+interface AutofillResult {
+  ok: boolean;
+  filled: string[];
+  steps?: string[];
+  error?: string;
+}
+
+/** Local account only: a visible browser on this PC fills the application form (never submits). */
+function AutofillButton({
+  job,
+  cvPath,
+  letterPath,
+}: {
+  job: JobDetail;
+  cvPath?: string;
+  letterPath?: string;
+}) {
+  const confirm = useConfirm();
+  const autofill = useMutation({
+    mutationFn: () =>
+      serverRequest<AutofillResult>("POST", "/api/local/autofill", {
+        url: job.url,
+        cv_path: cvPath ?? "",
+        cover_letter_path: letterPath ?? "",
+      }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success(
+          result.filled.length
+            ? `Filled: ${result.filled.join(", ")}`
+            : "The browser is open and waiting for the application form",
+          {
+            description: "It keeps filling fields as they appear. Review everything and submit it yourself.",
+          },
+        );
+      } else {
+        toast.warning("Auto-fill stopped early", { description: result.error });
+      }
+    },
+    onError: (error: Error) => toast.error("Auto-fill could not start", { description: error.message }),
+  });
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        loading={autofill.isPending}
+        disabled={!job.url}
+        onClick={async () => {
+          const ok = await confirm({
+            title: "Open the posting with auto-fill?",
+            description: (
+              <>
+                <p>
+                  A browser window opens the posting, clicks its Apply button, fills your name, email, phone
+                  and location, and attaches the tailored CV{letterPath ? " and cover letter" : ""} where it
+                  can. It keeps filling new fields while you go through the form.
+                </p>
+                <p className="mt-2">
+                  If a site asks you to sign in (LinkedIn, Indeed…), sign in once in that window. It is
+                  remembered next time.
+                </p>
+                <p className="mt-2 font-medium">
+                  Nothing is submitted. Check every field, submit it yourself, then close the window.
+                </p>
+              </>
+            ),
+            confirmLabel: "Open browser",
+          });
+          if (ok) autofill.mutate();
+        }}
+      >
+        <Bot /> Auto-fill with browser
+      </Button>
+      {autofill.data && (
+        <div className="w-full space-y-1" role="status">
+          <p className={cn("text-body", autofill.data.ok ? "text-success" : "text-warning")}>
+            {autofill.data.ok
+              ? `Filled so far: ${autofill.data.filled.join(", ") || "nothing yet"}. The window keeps filling new fields until you close it.`
+              : `Auto-fill stopped: ${autofill.data.error}`}
+          </p>
+          {(autofill.data.steps ?? []).length > 0 && (
+            <ul className="list-inside list-disc text-caption text-muted-foreground">
+              {autofill.data.steps?.map((step) => <li key={step}>{step}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ApplyWorkspace({ job }: { job: JobDetail }) {
   const { patch, setJob } = useJobMutations(job);
+  const projectFiles = Boolean(useSession().data?.project_files);
   const [preview, setPreview] = React.useState<DocumentItem | null>(null);
   const [company, setCompany] = React.useState(job.company.startsWith("Partner (") ? "" : job.company);
   const [notes, setNotes] = React.useState(job.notes);
@@ -386,7 +517,11 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
           done={Boolean(checklist.apply)}
           onToggle={toggle("apply")}
           title="Apply"
-          description="Apply on the posting's site with the downloaded CV and letter, then mark it here."
+          description={
+            projectFiles
+              ? "Let the browser fill the form, or apply yourself. You always review and press submit yourself."
+              : "Apply on the posting's site with the downloaded CV and letter, then mark it here."
+          }
         >
           <div className="flex flex-wrap gap-2">
             {job.url && (
@@ -399,6 +534,7 @@ export function ApplyWorkspace({ job }: { job: JobDetail }) {
                 <ExternalLink /> Open the posting
               </a>
             )}
+            {projectFiles && <AutofillButton job={job} cvPath={cvDoc?.path} letterPath={letterDoc?.path} />}
             <Button
               size="sm"
               onClick={() => {

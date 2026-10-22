@@ -20,7 +20,7 @@ role_profiles:
     focus: "cloud data platforms, scalable pipelines, lakehouse architecture, orchestration, and data quality"
     keywords: ["data engineering", "PySpark", "Databricks", "Microsoft Fabric", "Delta Lake", "Azure", "CI/CD"]
     preferred_skill_categories: ["platforms_and_cloud", "engineering_and_etl", "devops_and_orchestration", "languages_and_tools"]
-    preferred_projects: ["Refrigerator Ships Production ETL Pipeline", "E-Commerce Lakehouse Platform", "Data Pipeline CI/CD DevOps Platform", "Data Quality and Governance Framework"]
+    preferred_projects: ["End-to-End Restaurant Chain Lakehouse", "Refrigerator Ships Production ETL Pipeline", "E-Commerce Lakehouse Platform", "OTIF Supply Chain Pipeline"]
   Data Analyst:
     focus: "business analysis, SQL, KPI development, Power BI dashboards, data storytelling, and stakeholder communication"
     keywords: ["data analysis", "Power BI", "SQL", "DAX", "KPI", "business intelligence", "stakeholder management"]
@@ -91,18 +91,26 @@ experience:
       - "Guided business users through interactive iterative reviews to refine KPIs and enhance report usability and adoption."
 
 projects:
+  - title: "End-to-End Restaurant Chain Lakehouse"
+    tech_stack: "Azure Databricks, Event Hubs, Lakeflow Connect, Unity Catalog, Databricks SQL"
+    highlights:
+      - "Built a streaming and batch platform (Azure Event Hubs, Azure SQL via Lakeflow Connect) into Bronze-Silver-Gold fact and dimension tables, governed with Unity Catalog"
+      - "Added AI sentiment analysis on customer reviews and Gold tables for sales, customer 360 and restaurant reviews; code on GitHub"
+
   - title: "Refrigerator Ships Production ETL Pipeline"
     tech_stack: "Azure Databricks, PySpark, Delta Lake, Auto Loader"
     highlights:
-      - "Ingested IoT sensor data and fleet API sources (50K+ daily records) into a central Delta Lake repository."
-      - "Optimized query execution times from 8 minutes down to 45 seconds using ZORDER clustering and partitioning."
+      - "Ingested IoT sensor and fleet API data with Auto Loader, handling 50K+ records per day, with anomaly detection and SCD2 history in the Silver layer"
+      - "Built Gold metrics for temperature compliance and delivery performance; cut query time from 8 minutes to 45 seconds with ZORDER and partitioning"
 
   - title: "E-Commerce Lakehouse Platform"
     tech_stack: "Azure Databricks, PySpark, REST APIs, Structured Streaming, Power BI"
     highlights:
-      - "Unified data across 5 distinct source systems into Medallion data layers with SCD Type 2 history tracking."
-      - "Implemented automated data quality frameworks (null validation, referential integrity) and incremental Power BI refresh."
-
+      - "Integrated 5 source systems (APIs, streams, CSV, JSON, GitHub) into Medallion layers with SCD2, referential integrity checks, unit tests and incremental Power BI refresh"
+  - title: "OTIF Supply Chain Pipeline"
+    tech_stack: "Python, Pandas, Git, GitHub Actions, Docker"
+    highlights:
+      - "Reconciled ERP, MES and WMS data into an on-time-in-full KPI, with unit tests and an automated CI check on every push"
   - title: "Data Pipeline CI/CD DevOps Platform"
     tech_stack: "GitHub Actions, Docker, Kubernetes, Python"
     highlights:
@@ -156,13 +164,11 @@ projects:
     highlights:
       - "Built a machine learning model to flag suspicious transactions in e-commerce order and payment data."
       - "Applied pattern detection techniques to identify potentially fraudulent transaction behaviour."
-
   - title: "Gender and Age Detection System"
     tech_stack: "Computer Vision, Deep Learning"
     highlights:
       - "Built an AI system using computer vision and deep learning to predict approximate age and gender from images or video."
       - "Applied pre-trained face detection and classification models for real-time predictions."
-
 certifications:
   - name: "Databricks AI Fundamentals"
     issuer: "Databricks"

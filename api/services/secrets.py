@@ -13,6 +13,7 @@ MANAGED = {
     "GROQ_API_KEY": ("Groq API key", "groq"),
     "ADZUNA_APP_ID": ("Adzuna app ID", "adzuna"),
     "ADZUNA_APP_KEY": ("Adzuna app key", "adzuna"),
+    "BRAVE_API_KEY": ("Brave Search API key", "brave"),
 }
 PLACEHOLDER = re.compile(r"^your_|_here$")
 LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")

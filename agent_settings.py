@@ -70,7 +70,7 @@ DEFAULTS = {
         "StepStone Belgium", "Jobat Belgium", "VDAB Belgium", "Actiris Brussels",
         "Indeed Alerts", "LinkedIn Alerts",
     ],
-    "time_window_hours": 48,
+    "time_window_hours": 24,
     # Countries searched when a run does not pick its own (ids from regions.py).
     "regions": ["BE", "NL"],
     # Languages a job may be posted in or require (ids from languages.py). Empty means any language.
@@ -78,7 +78,8 @@ DEFAULTS = {
     # Which sources a run uses by default (keys of job_sources.SOURCES).
     "sources": {
         "linkedin": True, "indeed": True, "glassdoor": False, "stepstone": True, "jobat": True, "michaelpage": True,
-        "vdab": True, "adzuna": True, "arbeitnow": True,
+        "randstad": True, "manpower": True, "hays": True, "roberthalf": True, "actiris": True, "forem": True,
+        "websearch": True, "vdab": True, "adzuna": True, "arbeitnow": True,
         "arbeitsagentur": True, "jobtech": True, "remotive": True, "himalayas": True, "jobicy": True,
         "remoteok": True, "company_boards": True, "gmail": True,
     },

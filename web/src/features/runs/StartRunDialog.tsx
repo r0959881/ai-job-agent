@@ -108,7 +108,7 @@ export function StartRunDialog({
   const [stepIndex, setStepIndex] = React.useState(0);
   const [scope, setScope] = React.useState<Scope>({ regions: [], roles: [], languages: [], sources: [] });
   const [options, setOptions] = React.useState({
-    time_window_hours: 48,
+    time_window_hours: 24,
     max_tailor: null as number | null,
     dry_run: false,
   });
@@ -578,7 +578,7 @@ function RunOptionsFields({
             max={720}
             className="tabular"
             value={options.time_window_hours}
-            onChange={(e) => onChange({ ...options, time_window_hours: Number(e.target.value) || 48 })}
+            onChange={(e) => onChange({ ...options, time_window_hours: Number(e.target.value) || 24 })}
           />
         </Field>
         <Field label="Max CVs to tailor" htmlFor="run-max" description="Leave empty for no limit.">

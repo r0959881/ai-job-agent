@@ -1,7 +1,6 @@
 """Render DOCX files as HTML for in-browser previews."""
 import html
 import re
-import tempfile
 from pathlib import Path
 
 import mammoth
@@ -32,20 +31,17 @@ def text_preview(path, limit=200_000):
     return f"<pre>{html.escape(text)}</pre>"
 
 
-def sample_cv_html(data, role_family=None):
-    """Build a sample CV from (possibly unsaved) resume data and return it as HTML."""
-    from generate_doc import create_tailored_cv_docx
+def sample_cv_pdf(data, role_family=None):
+    """A sample CV (PDF bytes) from (possibly unsaved) resume data, in the real CV layout."""
+    from generate_doc import build_cv_pdf
 
     info = data.get("personal_info") or {}
     summary = (
-        f"{info.get('headline') or 'Your headline'}. This is where the tailored, 3-sentence summary for each job "
+        f"{info.get('headline') or 'Your headline'}. This is where the tailored 2-sentence summary for each job "
         "appears. The agent writes it from your resume facts for the role family you pick."
     )
     first_bullets: list[str] = []
-    for experience in data.get("experience") or []:
-        first_bullets.extend((experience.get("bullets") or [])[:1])
-    with tempfile.TemporaryDirectory() as folder:
-        target = Path(folder) / "preview.docx"
-        create_tailored_cv_docx("Sample Company", "Sample Role", summary, first_bullets[:4], role_family,
-                                data=data, output_path=target)
-        return docx_to_html(target)
+    for index, experience in enumerate(data.get("experience") or []):
+        first_bullets.extend(f"[{index + 1}] {bullet}" for bullet in (experience.get("bullets") or [])[:2])
+    return build_cv_pdf(data, "Sample Company", "Sample Role", summary, first_bullets, role_family,
+                        tagline=f"{info.get('headline') or 'Your catch phrase'} (adapted to each company)")

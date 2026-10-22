@@ -14,11 +14,13 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from api.services.preview import sanitise
-from config import load_resume_file
+from agent_log import log
+from config import company_in_title, load_resume_file
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+PDF = "application/pdf"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_PREVIEW = 10 * 1024 * 1024
 
@@ -39,6 +41,9 @@ class TailorBody(BaseModel):
     summary: str | None = None
     bullets: list[str] | None = None
     role_family: str | None = None
+    # The catch phrase under the name and the skills to lead with (both optional).
+    tagline: str | None = None
+    skills: list[str] | None = None
 
 
 class CoverLetterBody(BaseModel):
@@ -88,47 +93,54 @@ def tailor_preview(body: TailorBody):
         content = tailored_content_for(job, resume=resume)
     except Exception as exc:
         raise _groq_error(exc) from exc
-    return {"summary": content["summary"], "bullets": content["bullets"], "role_family": content["role_family"]}
+    return {key: content.get(key) for key in ("tagline", "summary", "skills", "bullets", "role_family")}
 
 
 @router.post("/tailor")
 def tailor(body: TailorBody):
-    """Write the tailored CV. Without summary and bullets they are generated first."""
-    from generate_doc import create_tailored_cv_docx, cv_file_stem
+    """Write the tailored CV (PDF). Without summary and bullets they are generated first."""
+    from generate_doc import create_tailored_cv, cv_file_stem
     from tailor import tailored_content_for
 
     resume = _resume()
     role_family = body.role_family if body.role_family is not None else _role_family(body.job)
-    summary, bullets = body.summary, body.bullets
+    summary, bullets, tagline, skills = body.summary, body.bullets, body.tagline or "", body.skills
     if summary is None:
         try:
             content = tailored_content_for(body.job.model_dump() | {"role_family": role_family}, resume=resume)
         except Exception as exc:
             raise _groq_error(exc) from exc
         summary, bullets, role_family = content["summary"], content["bullets"], content["role_family"]
+        tagline, skills = content.get("tagline") or "", content.get("skills")
     buffer = io.BytesIO()
-    create_tailored_cv_docx(body.job.company, body.job.title, summary, bullets or [], role_family or None,
-                            data=resume, output_path=buffer)
+    create_tailored_cv(body.job.company, body.job.title, summary, bullets or [], role_family or None,
+                       data=resume, output_path=buffer, tagline=tagline, skills=skills, job_text=body.job.description)
     name = cv_file_stem((resume.get("personal_info") or {}).get("full_name"), body.job.company, body.job.title)
-    return {"summary": summary, "bullets": bullets or [], "role_family": role_family or "",
-            "file": file_payload(f"{name}.docx", DOCX, buffer.getvalue())}
+    return {"tagline": tagline, "summary": summary, "bullets": bullets or [], "skills": skills or [],
+            "role_family": role_family or "", "file": file_payload(f"{name}.pdf", PDF, buffer.getvalue())}
 
 
 @router.post("/cover-letter")
 def cover_letter(body: CoverLetterBody):
-    from generate_cover_letter import cover_letter_stem, create_cover_letter_docx
+    from generate_cover_letter import cover_letter_stem, create_cover_letter_docx, written_paragraphs
 
     resume = _resume()
     role_family = _role_family(body.job) or "General"
     company = (body.company or body.job.company or "").strip()
     if company.startswith("Partner ("):
-        company = ""
+        company = company_in_title(body.job.title)
+    try:  # a letter written for this job; the role family's letter when Groq is unavailable
+        paragraphs = written_paragraphs(body.job.model_dump() | {"company": company}, resume)
+    except Exception as exc:
+        log(f"⚠️ Cover letter written from the role template: {exc}", level="warning")
+        paragraphs = None
     buffer = io.BytesIO()
     create_cover_letter_docx(role_family, company=company or "the hiring team", job_title=body.job.title,
-                             data=resume, output_path=buffer)
-    name = cover_letter_stem((resume.get("personal_info") or {}).get("full_name"), role_family,
-                             company or "the hiring team", body.job.title)
-    return {"role_family": role_family, "file": file_payload(f"{name}.docx", DOCX, buffer.getvalue())}
+                             data=resume, output_path=buffer, location=body.job.location, paragraphs=paragraphs)
+    name = cover_letter_stem((resume.get("personal_info") or {}).get("full_name"), role_family, company,
+                             body.job.title)
+    return {"role_family": role_family, "tailored": paragraphs is not None,
+            "file": file_payload(f"{name}.docx", DOCX, buffer.getvalue())}
 
 
 @router.post("/report")

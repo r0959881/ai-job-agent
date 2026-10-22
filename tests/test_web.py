@@ -290,26 +290,29 @@ def test_tailor_returns_the_cv_file(client, offline):
     preview = client.post("/api/tailor/preview", json={"job": JOB}).json()
     assert preview["summary"] == "Tailored summary." and preview["role_family"] == "Data Analyst"
     result = client.post("/api/tailor", json={"job": JOB, "summary": "Edited.", "bullets": ["Mine"]}).json()
-    assert result["file"]["name"] == "Ammar_Haider_CV_Acme NV_Junior Data Analyst.docx"
-    from docx import Document
+    assert result["file"]["name"] == "Junior Data Analyst_Acme_CV.pdf"
+    assert result["file"]["mime"] == "application/pdf"
+    from pypdf import PdfReader
 
-    text = "\n".join(p.text for p in Document(io.BytesIO(base64.b64decode(result["file"]["data"]))).paragraphs)
-    assert "Edited." in text and "Mine" in text
+    reader = PdfReader(io.BytesIO(base64.b64decode(result["file"]["data"])))
+    text = reader.pages[0].extract_text()
+    assert "Edited." in text and "Mine" in text and len(reader.pages) <= 2
     assert offline.completions.calls == 1  # the second call used the edited content
 
 
 def test_cover_letter_report_preview_and_insights(client, offline):
     letter = client.post("/api/cover-letter", json={"job": JOB}).json()
-    assert letter["file"]["name"].startswith("Ammar_Haider_Cover_Letter_Acme NV")
+    assert letter["file"]["name"] == "Junior Data Analyst_Acme_CL.docx"
     report = client.post("/api/report", json={"jobs": [JOB | {"cv_path": "../CVs/cv.docx"}], "excluded": []}).json()
     from openpyxl import load_workbook
 
     sheet = load_workbook(io.BytesIO(base64.b64decode(report["file"]["data"])))["Jobs"]
     assert sheet.cell(2, 15).hyperlink.target == "../CVs/cv.docx"
 
-    cv = base64.b64decode(client.post("/api/tailor", json={"job": JOB}).json()["file"]["data"])
-    html = client.post("/api/documents/preview", files={"file": ("cv.docx", cv)}).json()["html"]
+    letter_file = base64.b64decode(letter["file"]["data"])
+    html = client.post("/api/documents/preview", files={"file": ("letter.docx", letter_file)}).json()["html"]
     assert "AMMAR HAIDER" in html and "<script" not in html
+    assert "Application: Junior Data Analyst" in html and "Dear Hiring Team," in html and "Kind regards," in html
     assert client.post("/api/documents/preview", files={"file": ("x.pdf", b"%PDF")}).status_code == 415
 
     insights = client.post("/api/jobs/insights", json=JOB).json()
@@ -404,3 +407,58 @@ def test_the_owner_email_opens_the_project_files(monkeypatch, project_root):
     sign_in(someone_else, "tester2@example.com", "Tester Two")
     assert someone_else.get("/api/session").json()["project_files"] is False
     assert someone_else.get("/api/resume").json()["data"]["personal_info"]["full_name"] == "Tester Two"
+
+
+def test_the_cv_plan_is_tailored_and_fits_two_pages():
+    import copy
+
+    import yaml
+    from conftest import CODE_ROOT
+    from pypdf import PdfReader
+
+    from generate_doc import FONT, build_cv_pdf, build_plan, split_tag
+
+    data = yaml.safe_load((CODE_ROOT / "resume_data.yaml").read_text(encoding="utf-8"))
+    assert FONT == "Carlito"  # the bundled standard font is found
+    assert split_tag("[2] [2] Built **ETL**") == (1, "Built **ETL**")
+    job = "We need a data engineer with SQL, Python and Power BI."
+    plan = build_plan(data, "Data Engineer", "Summary.", ["[2] Second role bullet", "[1] First role bullet"],
+                      tagline="Data engineer for Acme", skills=["SQL", "Not In Resume", "Python"],
+                      job_title="Data Engineer", company="Acme", job_text=job)
+    assert plan.tagline == "Data engineer for Acme"
+    assert [bullets for _entry, bullets in plan.experience][:2] == [["First role bullet"], ["Second role bullet"]]
+    assert "Not In Resume" not in plan.skills and {"SQL", "Python", "Power BI"} <= set(plan.bold_terms)
+    preferred = data["role_profiles"]["Data Engineer"]["preferred_projects"]
+    titles = [p["title"] for p, _h in plan.projects]
+    assert titles == preferred  # only the projects that fit the role
+
+    pdf = build_cv_pdf(data, "Acme", "Data Engineer", "Summary.", ["[1] First role bullet"], "Data Engineer",
+                       tagline="Data engineer for Acme", job_text=job)
+    reader = PdfReader(io.BytesIO(pdf))
+    assert len(reader.pages) <= 2
+    assert "Dutch: A2" in reader.pages[-1].extract_text().splitlines()[-1]  # languages close the CV
+
+    heavy = copy.deepcopy(data)
+    heavy["experience"] = heavy["experience"] * 3
+    pdf = build_cv_pdf(heavy, "Acme", "Data Engineer", "A long summary sentence. " * 12, [], "Data Engineer",
+                       job_text=job)
+    assert len(PdfReader(io.BytesIO(pdf)).pages) <= 2  # trimmed as far as it goes; one page for real profiles
+
+
+def test_tailored_text_with_numbers_not_in_the_resume_is_left_out():
+    import tailor
+
+    resume = {"experience": [{"bullets": ["Cut setup time by 80% for 50+ users."]}]}
+    assert tailor.keep_verifiable(["[1] Cut setup by 80%", "[1] Covered 75 sources", "[2] No numbers"], resume) == [
+        "[1] Cut setup by 80%", "[2] No numbers"]
+    summary = "I bring 1.5 years of experience. I cut setup time by 80% for 50+ users."
+    assert tailor.drop_unverifiable_sentences(summary, resume) == "I cut setup time by 80% for 50+ users."
+
+
+def test_autofill_is_local_only_and_checks_the_link(local_client, client):
+    assert client.post("/api/local/autofill", json={"url": "https://example.com"}).status_code == 404
+    response = local_client.post("/api/local/autofill", json={"url": "javascript:alert(1)"})
+    assert response.status_code == 400 and "not a web address" in response.json()["detail"]
+    from api.routers.local import _output_file
+
+    assert _output_file("output/../jobs.db") == "" and _output_file("../secret.txt") == ""

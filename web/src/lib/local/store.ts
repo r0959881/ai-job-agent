@@ -177,6 +177,9 @@ function addedCutoff(added: string | null): string | null {
   return added && hours[added] ? new Date(Date.now() - hours[added] * 3600_000).toISOString() : null;
 }
 
+/** How long a job counts as new: it is on the New jobs page this long, then moves to Jobs. */
+export const NEW_JOB_HOURS = 24;
+
 /** Whether a run returned the job: recorded since runs track it, else added while that run ran (older runs). */
 function foundByRun(job: StoredJob, run: LocalRun | undefined) {
   if (!run) return false;
@@ -203,6 +206,9 @@ export async function listJobs(params: URLSearchParams): Promise<JobsPage> {
   const latestRun =
     added === "run" ? (await idb.getAll<LocalRun>("runs")).sort((a, b) => b.id - a.id)[0] : undefined;
   const addedSince = added === "run" ? null : addedCutoff(added);
+  // "only": the New jobs page (added in the last NEW_JOB_HOURS); "hide": Jobs, which shows the rest.
+  const newJobs = params.get("new");
+  const newSince = new Date(Date.now() - NEW_JOB_HOURS * 3600_000).toISOString();
   const endOfToday = `${new Date().toISOString().slice(0, 10)}T23:59:59`;
 
   const filtered = jobs.filter((job) => {
@@ -224,6 +230,9 @@ export async function listJobs(params: URLSearchParams): Promise<JobsPage> {
     if (quick === "follow_up" && !(job.follow_up_at && job.follow_up_at <= endOfToday)) return false;
     if (addedSince !== null && !(job.discovered_at && job.discovered_at >= addedSince)) return false;
     if (added === "run" && !foundByRun(job, latestRun)) return false;
+    const isNew = Boolean(job.discovered_at) && job.discovered_at >= newSince;
+    if (newJobs === "only" && !isNew) return false;
+    if (newJobs === "hide" && isNew) return false;
     return true;
   });
 

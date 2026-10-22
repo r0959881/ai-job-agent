@@ -29,6 +29,8 @@ interface Plan {
 interface SearchResult {
   ok: boolean;
   error?: string;
+  /** The source cannot answer for a while (a spent quota), so the run skips it. */
+  unavailable?: boolean;
   jobs: (Partial<Job> & { id: string })[];
   excluded: Record<string, unknown>[];
   counts: { discovered: number; kept: number; filtered: number; language_filtered: number };
@@ -239,7 +241,12 @@ async function execute(run: RunController, options: Partial<RunOptions>) {
               counts: { discovered: 0, kept: 0, filtered: 0, language_filtered: 0 },
             };
           }
-          if (!result.ok) {
+          if (!result.ok && result.unavailable) {
+            // A spent quota (e.g. Le Forem's daily limit): one warning, then skip the source.
+            errors += 1;
+            gaveUp.add(search.source);
+            run.log(`⚠️ ${search.name}: ${result.error} Skipping its searches in this run.`, "warning", group.step);
+          } else if (!result.ok) {
             errors += 1;
             failures[search.source] = (failures[search.source] ?? 0) + 1;
             run.log(`❌ ${search.name} (${search.label}): ${result.error}`, "error", group.step);

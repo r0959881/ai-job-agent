@@ -91,7 +91,13 @@ async function detailWithInsights(id: string) {
 
 async function tailorJob(
   id: string,
-  edits: { summary?: string; bullets?: string[]; role_family?: string } = {},
+  edits: {
+    summary?: string;
+    bullets?: string[];
+    role_family?: string;
+    tagline?: string;
+    skills?: string[];
+  } = {},
 ) {
   const job = await store.jobDetail(id);
   const result = await serverRequest<{ role_family: string; file: FilePayload }>("POST", "/api/tailor", {
@@ -168,7 +174,13 @@ route("POST", /^\/api\/jobs\/([^/]+)\/tailor\/preview$/, async (m) => {
 route("POST", /^\/api\/jobs\/([^/]+)\/tailor$/, (m, body) =>
   tailorJob(
     decodeURIComponent(m[1]),
-    (body ?? {}) as { summary?: string; bullets?: string[]; role_family?: string },
+    (body ?? {}) as {
+      summary?: string;
+      bullets?: string[];
+      role_family?: string;
+      tagline?: string;
+      skills?: string[];
+    },
   ),
 );
 route("POST", /^\/api\/jobs\/([^/]+)\/cover-letter$/, (m, body) =>
@@ -207,6 +219,8 @@ route("POST", /^\/api\/documents\/bulk-delete$/, async (_m, body) => {
 route("GET", /^\/api\/documents\/(\d+)\/preview$/, async (m) => {
   const file = await store.documentFile(Number(m[1]));
   if (!file) throw new ApiError(404, "The file is no longer in your documents folder.", null);
+  // PDFs (the tailored CVs) are shown by the browser's own viewer; Word files are converted to HTML.
+  if (file.name.toLowerCase().endsWith(".pdf")) return { pdf: file };
   const form = new FormData();
   form.append("file", file, file.name);
   return serverRequest("POST", "/api/documents/preview", form);
@@ -250,7 +264,7 @@ route("GET", /^\/api\/stats$/, async () => {
     ),
     serverRequest("GET", "/api/integrations/status").catch(() => ({})),
   ]);
-  return { ...(await store.stats(settings?.settings.time_window_hours ?? 48)), integrations };
+  return { ...(await store.stats(settings?.settings.time_window_hours ?? 24)), integrations };
 });
 route("POST", /^\/api\/data\/reset-jobs$/, async (_m, body) => {
   if ((body as { confirm?: string })?.confirm !== "RESET")

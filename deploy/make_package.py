@@ -18,7 +18,7 @@ FILES = [
     "agent_settings.py", "agent_log.py", "config.py", "database.py", "discovery.py", "generate_cover_letter.py",
     "generate_doc.py", "languages.py", "regions.py", "report.py", "tailor.py", "user_scope.py",
 ]
-FOLDERS = ["api", "job_sources", "web/dist"]
+FOLDERS = ["api", "job_sources", "web/dist", "fonts"]
 SKIP_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 
 

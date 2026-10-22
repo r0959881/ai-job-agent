@@ -91,7 +91,7 @@ class SearchSettings(BaseModel):
     allowed_locations: list[str] = Field(default_factory=list)
     blocked_locations: list[str] = Field(default_factory=list)
     trusted_alert_sources: list[str] = Field(default_factory=list)
-    time_window_hours: int = Field(default=48, ge=1, le=24 * 60)
+    time_window_hours: int = Field(default=24, ge=1, le=24 * 60)
     regions: list[str] = Field(default_factory=lambda: ["BE", "NL"])
     languages: list[str] = Field(default_factory=lambda: ["en"])
     sources: Sources = Field(default_factory=lambda: Sources())

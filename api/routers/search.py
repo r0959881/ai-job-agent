@@ -16,6 +16,7 @@ import regions
 from api import server_config
 from api.routers.settings import _role_profiles
 from discovery import adzuna_searches, normalise_job, run_scope
+from job_sources import websearch
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
@@ -119,6 +120,8 @@ def _skip_reason(key, settings):
         return "add your Adzuna keys in Settings → Integrations"
     if key == "company_boards" and not settings.get("company_boards"):
         return "no companies followed yet (Settings → Search)"
+    if key == "websearch" and not websearch.configured():
+        return "add a Brave Search or Groq key in Settings → Integrations"
     return "not available in the selected regions"
 
 
@@ -161,6 +164,9 @@ def run_one(body: SearchRun):
     counts = {"discovered": 0, "kept": 0, "filtered": 0, "language_filtered": 0}
     try:
         items = search.fetch()
+    except job_sources.SourceUnavailable as error:  # a spent quota: the browser warns once and skips the source
+        return {"ok": False, "unavailable": True, "error": str(error)[:300], "jobs": [], "excluded": [],
+                "counts": counts}
     except Exception as error:  # one broken source must not stop the run; the browser counts the failure
         return {"ok": False, "error": f"{type(error).__name__}: {str(error)[:200]}", "jobs": [], "excluded": [],
                 "counts": counts}
@@ -209,6 +215,8 @@ def _configured(key, settings):
         return discovery.adzuna_credentials() is not None, "Add your Adzuna keys in Settings → Integrations."
     if key == "company_boards":
         return bool(settings["company_boards"]), "Follow companies in Settings → Search first."
+    if key == "websearch":
+        return websearch.configured(), "Add a Brave Search (or Groq) key in Settings → Integrations."
     return True, ""
 
 

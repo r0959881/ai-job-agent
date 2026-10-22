@@ -39,7 +39,7 @@ def test_cli_without_listener_prints_the_same_lines(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert out.count("✅ Database initialized successfully!") >= 2
     assert "🎯 [Adzuna Belgium] Saved 1 job(s) | (0 duplicates, 1 filtered)" in out
-    assert "✅ Included" in out and "from the last 48 hours." in out
+    assert "✅ Included" in out and "from the last 24 hours." in out
 
 
 def test_missing_groq_key_skips_tailoring_with_a_warning(monkeypatch):

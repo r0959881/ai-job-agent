@@ -126,7 +126,7 @@ def install_fakes(monkeypatch, groq=None, gmail=None):
     import discovery
     import gmail_parser
     import main
-    from job_sources import scrapers, sites
+    from job_sources import scrapers, sites, websearch
 
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     monkeypatch.setenv("ADZUNA_APP_ID", "id")
@@ -134,6 +134,7 @@ def install_fakes(monkeypatch, groq=None, gmail=None):
     monkeypatch.setattr(discovery.requests, "get", fake_get)
     monkeypatch.setattr(scrapers, "_scrape", fake_scrape)
     monkeypatch.setattr(sites, "search", fake_site_search)
+    monkeypatch.setattr(websearch, "fetch", lambda query, ctx, region, _engine, _cache: [])
     groq = groq or FakeGroq()
     monkeypatch.setattr(main, "get_client", lambda: groq)
     if gmail is not False:  # False keeps the real get_gmail_service.

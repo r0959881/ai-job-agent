@@ -53,11 +53,13 @@ function KindIcon({ kind }: { kind: string }) {
   return <FileText className="size-5 text-primary" aria-hidden />;
 }
 
-/** "Ammar_Haider_CV_Acme_Junior Data Engineer.docx" -> "Acme · Junior Data Engineer" */
+/** "Junior Data Engineer_Acme_CV.pdf" -> "Junior Data Engineer · Acme";
+ *  older names: "Ammar_Haider_CV_Acme_Junior Data Engineer.docx" -> "Acme · Junior Data Engineer" */
 export function prettyName(name: string) {
   const stem = name.replace(/\.[^.]+$/, "");
   const match = stem.match(/_(?:CV|Cover_Letter)_(.*)$/);
-  return (match ? match[1] : stem).replace(/_/g, " · ").replace(/\s+/g, " ").trim();
+  const text = match ? match[1] : stem.replace(/_(?:CV|CL)$/, "");
+  return text.replace(/_/g, " · ").replace(/\s+/g, " ").trim();
 }
 
 const isOrphan = (doc: DocumentItem) => doc.kind !== "report" && !doc.job_title;

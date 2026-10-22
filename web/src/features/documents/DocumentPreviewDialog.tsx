@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DocumentDownload } from "@/features/documents/DocumentDownload";
+import { PdfFrame } from "@/features/documents/PdfFrame";
 import { Download, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/confirm";
@@ -21,6 +22,13 @@ const KIND_LABEL: Record<string, string> = {
   report: "Excel report",
   other: "File",
 };
+
+/** "Consultant Data Engineer_Sia_CL.docx" -> "Consultant Data Engineer · Sia". The file name carries the
+ *  cleaned title, where job alerts store theirs as "Consultant Data EngineerSia · Antwerp (Hybrid)Easy Apply". */
+function headline(document: DocumentItem) {
+  const match = document.name.match(/^(.+)_(?:CV|CL)\.[a-z]+$/i);
+  return match ? match[1].replace(/_/g, " · ") : document.job_title;
+}
 
 export function useDocumentActions() {
   const queryClient = useQueryClient();
@@ -84,7 +92,7 @@ export function DocumentPreviewDialog({
   const actions = useDocumentActions();
   const preview = useQuery({
     queryKey: ["document-preview", document?.id, document?.created_at],
-    queryFn: () => api.get<{ html: string }>(`/api/documents/${document!.id}/preview`),
+    queryFn: () => api.get<{ html?: string; pdf?: File }>(`/api/documents/${document!.id}/preview`),
     enabled: Boolean(document) && document?.kind !== "report",
   });
   const canRegenerate =
@@ -99,8 +107,8 @@ export function DocumentPreviewDialog({
           <>
             <DialogHeader>
               <DialogTitle>
-                {document.job_title
-                  ? `${KIND_LABEL[document.kind]}: ${document.job_title}`
+                {headline(document)
+                  ? `${KIND_LABEL[document.kind]}: ${headline(document)}`
                   : KIND_LABEL[document.kind]}
               </DialogTitle>
               <DialogDescription className="break-all">{document.name}</DialogDescription>
@@ -147,10 +155,12 @@ export function DocumentPreviewDialog({
                 <SkeletonRows rows={10} />
               ) : preview.isError ? (
                 <ErrorState error={preview.error} onRetry={() => preview.refetch()} />
+              ) : preview.data.pdf ? (
+                <PdfFrame blob={preview.data.pdf} title={document.name} />
               ) : (
                 <div
                   className="doc-preview rounded-md bg-card p-6 text-card-foreground shadow-card"
-                  dangerouslySetInnerHTML={{ __html: preview.data.html }}
+                  dangerouslySetInnerHTML={{ __html: preview.data.html ?? "" }}
                 />
               )}
             </div>

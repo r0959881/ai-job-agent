@@ -278,7 +278,12 @@ export interface DocumentItem {
 }
 
 export interface TailoredContent {
+  /** The catch phrase under the name, adapted to the company and role. */
+  tagline?: string;
   summary: string;
+  /** Skills to lead with, most relevant first. */
+  skills?: string[];
+  /** "[n] text": n is the experience entry the bullet belongs to; **terms** are set in bold. */
   bullets: string[];
   role_family: string;
 }

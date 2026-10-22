@@ -49,9 +49,9 @@ def test_edits_round_trip_through_the_cli_reader(client, project_root):
     assert on_disk["projects"][0]["title"] == data["projects"][0]["title"]
     assert '    keywords: ["data engineering"' in text  # flow style kept for untouched lists' siblings
 
-    from generate_doc import create_tailored_cv_docx
+    from generate_doc import create_tailored_cv
 
-    path = create_tailored_cv_docx("Acme", "Data Engineer", "Summary.", ["One"], "Data Engineer")
+    path = create_tailored_cv("Acme", "Data Engineer", "Summary.", ["One"], "Data Engineer")
     assert (project_root / path).exists()
 
 
@@ -135,17 +135,47 @@ def test_missing_resume_is_empty_not_an_error(client):
 
 
 def test_preview_renders_unsaved_data(client):
+    import base64
+    import io
+
+    from pypdf import PdfReader
+
     data = get(client)["data"]
     data["personal_info"]["full_name"] = "Preview Person"
     response = client.post("/api/resume/preview", json={"data": data, "role_family": "Data Analyst"})
     assert response.status_code == 200
-    html = response.json()["html"]
-    assert "PREVIEW PERSON" in html and "<script" not in html
+    reader = PdfReader(io.BytesIO(base64.b64decode(response.json()["pdf"])))
+    text = reader.pages[0].extract_text().replace(" ", "")
+    assert "PREVIEWPERSON" in text and len(reader.pages) <= 2
 
 
 def test_role_profile_warnings(client):
     data = get(client)["data"]
+    removed = data["projects"][0]["title"]  # a project some role profile lists
     data["projects"] = data["projects"][1:]
     assert client.put("/api/resume", json={"data": data}).status_code == 200
     warnings = get(client)["warnings"]
-    assert any("Refrigerator Ships Production ETL Pipeline" in w for w in warnings)
+    assert any(removed in w for w in warnings)
+
+
+def test_document_names_are_title_company_and_type_key():
+    from config import document_stem
+
+    assert document_stem("Data Engineer FHViveris Le Faubourg de Bruxelles Hybrid40K-45K year", "Viveris",
+                         "cover_letter") == "Data Engineer_Viveris_CL"
+    assert document_stem("Data Analist (M/V/X)", "Digipolis NV", "cv") == "Data Analist_Digipolis_CV"
+    assert document_stem("Junior Data Engineer | Brussels", "Via Actiris", "cv") == "Junior Data Engineer_Actiris_CV"
+    assert document_stem("Data Engineer (m/w/d) - Ghent", "Bluecrux", "cv") == "Data Engineer_Bluecrux_CV"
+
+
+def test_linkedin_alert_lines_give_title_company_and_town():
+    from config import parse_alert_line, place_of
+
+    line = ("Consultant Data EngineerSia · Antwerp (Hybrid)Actively recruitingEasy Apply Consultant Data Engineer "
+            "https://www.linkedin.com/comm/jobs/view/4480994153/?trackingId=x")
+    assert parse_alert_line(line) == {"title": "Consultant Data Engineer", "company": "Sia", "place": "Antwerp"}
+    assert place_of(line) == "Antwerp" and place_of("Mechelen, Flanders, Belgium") == "Mechelen"
+    assert parse_alert_line("DevOps EngineerKoda Tech · Antwerp (On-site)")["company"] == "Koda Tech"
+    assert parse_alert_line("Internship: Data AnalystENGIE Belgium · Ghent1 connection")["place"] == "Ghent"
+    assert parse_alert_line("Data AnalystCream Consulting · Brussels Region, Belgium")["place"] == "Brussels"
+    assert parse_alert_line("Data Engineer, Ghent") is None
