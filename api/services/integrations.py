@@ -13,6 +13,8 @@ def groq_status():
         return _health("missing", "No Groq API key, so CVs cannot be tailored.", "/settings/integrations")
     if not key.startswith("gsk_"):
         return _health("error", "The Groq key does not look valid (it should start with gsk_).", "/settings/integrations")
+    if secrets.get("GROQ_API_KEY_2").startswith("gsk_"):
+        return _health("ok", "Groq key set, with a backup key for when it reaches its limit.")
     return _health("ok", "Groq key set.")
 
 

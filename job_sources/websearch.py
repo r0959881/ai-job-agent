@@ -60,9 +60,9 @@ def brave_search(query, key, window_hours, count=20):
     return [(item.get("url", ""), sites.plain_text(item.get("title"))) for item in results if item.get("url")]
 
 
-def groq_search(query, key, window_hours):
-    """[(url, title)] from Groq's browser_search tool (the fallback)."""
-    from groq import Groq
+def groq_search(query, keys, window_hours):
+    """[(url, title)] from Groq's browser_search tool (the fallback), switching keys at a key's limit."""
+    from tailor import get_client
 
     days = max(1, -(-window_hours // 24))
     query = query.split(" (site:")[0]  # Brave's site filters mean nothing to Groq
@@ -71,7 +71,7 @@ def groq_search(query, key, window_hours):
               "and not on LinkedIn, Indeed, Glassdoor, StepStone or Jobat. "
               "Answer with one line per posting: URL | job title | company. Plain URLs, no citations. "
               "At most 10 lines, nothing else.")
-    response = Groq(api_key=key).chat.completions.create(
+    response = get_client(keys).chat.completions.create(
         model=GROQ_MODEL, messages=[{"role": "user", "content": prompt}], tools=[{"type": "browser_search"}],
         tool_choice="required", reasoning_effort="low", max_completion_tokens=2000)
     found = []
@@ -94,8 +94,8 @@ def is_candidate(url, title):
 class Engine:
     """Brave first, Groq when Brave is out of quota; shared by one run's searches."""
 
-    def __init__(self, brave_key, groq_key):
-        self.brave_key, self.groq_key = brave_key, groq_key
+    def __init__(self, brave_key, groq_keys):
+        self.brave_key, self.groq_keys = brave_key, groq_keys
         self.groq_left = GROQ_SEARCHES_PER_RUN
 
     def search(self, query, window_hours):
@@ -106,16 +106,16 @@ class Engine:
                 return brave_search(query, self.brave_key, window_hours), "Brave"
             except QuotaExceeded:
                 _brave_paused_until = time.monotonic() + QUOTA_PAUSE
-                if not self.groq_key:
+                if not self.groq_keys:
                     raise
-        if not self.groq_key:
+        if not self.groq_keys:
             if self.brave_key:  # Brave is paused after an exhausted quota
                 raise QuotaExceeded("Brave Search quota reached; add a Groq key to fall back on.")
             raise RuntimeError("Add a Brave Search or Groq API key in Settings → Integrations.")
         if self.groq_left <= 0:
             return [], "Groq"  # this run's Groq searches are used up: skip quietly
         self.groq_left -= 1
-        return groq_search(query, self.groq_key, window_hours), "Groq"
+        return groq_search(query, self.groq_keys, window_hours), "Groq"
 
 
 def located(item, region):
@@ -147,16 +147,22 @@ def fetch(query, ctx, region, engine, cache):
     return jobs
 
 
+def _groq_keys():
+    from tailor import groq_keys
+
+    return groq_keys()
+
+
 def configured():
-    return bool(user_scope.secret("BRAVE_API_KEY") or user_scope.secret("GROQ_API_KEY"))
+    return bool(user_scope.secret("BRAVE_API_KEY") or _groq_keys())
 
 
 def plan(ctx):
     """One search per selected region and role; nothing without a Brave or Groq key."""
-    brave_key, groq_key = user_scope.secret("BRAVE_API_KEY"), user_scope.secret("GROQ_API_KEY")
-    if not (brave_key or groq_key):
+    brave_key, groq_keys = user_scope.secret("BRAVE_API_KEY"), _groq_keys()
+    if not (brave_key or groq_keys):
         return []
-    engine = Engine(brave_key, groq_key)
+    engine = Engine(brave_key, groq_keys)
     cache = sites.DetailCache(ctx.settings.get("scraping", {}).get("time_budget"))
     searches = []
     for region in ctx.regions:

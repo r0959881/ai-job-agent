@@ -9,8 +9,8 @@ CODE_ROOT = Path(__file__).resolve().parents[1]
 TEST_ROOT = Path(tempfile.mkdtemp(prefix="ai_job_agent_tests_")).resolve()
 os.environ["AI_JOB_AGENT_ROOT"] = str(TEST_ROOT)
 os.environ["AI_JOB_AGENT_DEV_LOGIN"] = "1"
-for key in ("GROQ_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "ALERT_EMAIL_FROM", "ALERT_EMAIL_PASS", "ALERT_EMAIL_TO",
-            "DATABASE_URL", "SECRET_KEY", "PUBLIC_URL", "ALLOWED_EMAILS", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "BRAVE_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "ALERT_EMAIL_FROM",
+            "ALERT_EMAIL_PASS", "ALERT_EMAIL_TO", "DATABASE_URL", "SECRET_KEY", "PUBLIC_URL", "ALLOWED_EMAILS", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
             "LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "AI_JOB_AGENT_FAKE_SOURCES"):
     os.environ.pop(key, None)
 # .env is read from the test root (which has none), so real secrets are never loaded.
@@ -40,7 +40,7 @@ def project_root():
     """A fresh project folder (resume copied, empty output/) and an empty server database for every test."""
     _reset_root()
     yield TEST_ROOT
-    for key in ("GROQ_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY"):
+    for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "BRAVE_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY"):
         os.environ.pop(key, None)
 
 

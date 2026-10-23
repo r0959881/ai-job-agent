@@ -1,8 +1,10 @@
 import os
+import time
+from types import SimpleNamespace
 import re
 import yaml
 from dotenv import load_dotenv
-from groq import Groq
+from groq import Groq, RateLimitError
 import user_scope
 from agent_log import log
 from config import DB_PATH, ENV_PATH, load_resume_file
@@ -20,20 +22,75 @@ class GroqConfigError(Exception):
     """GROQ_API_KEY is missing or invalid."""
 
 
+# The user's Groq keys in the order they are used: the second takes over when the first reaches its limit.
+GROQ_KEY_NAMES = ("GROQ_API_KEY", "GROQ_API_KEY_2")
+_spent_until = {}  # key -> time.monotonic() until which Groq refuses it (its daily or per-minute limit)
+
+
+def groq_keys():
+    """The user's valid Groq keys, first key first."""
+    keys = [user_scope.secret(name) for name in GROQ_KEY_NAMES]
+    return [key for key in dict.fromkeys(keys) if key and key.startswith("gsk_")]
+
+
 def check_groq_key():
-    """Return the key, or raise GroqConfigError with the CLI's friendly message."""
-    groq_api_key = user_scope.secret("GROQ_API_KEY")
+    """Return the first usable key, or raise GroqConfigError with the CLI's friendly message."""
+    keys = groq_keys()
+    if keys:
+        return keys[0]
     where = "in Settings → Integrations" if user_scope.current() else "as GROQ_API_KEY in .env"
-    if not groq_api_key:
+    if not any(user_scope.secret(name) for name in GROQ_KEY_NAMES):
         raise GroqConfigError(f"❌ No Groq API key is set. Add your free Groq key {where}.")
-    if not groq_api_key.startswith("gsk_"):
-        raise GroqConfigError(f"❌ The Groq API key is invalid (it should start with gsk_). Set a new key {where}.")
-    return groq_api_key
+    raise GroqConfigError(f"❌ The Groq API key is invalid (it should start with gsk_). Set a new key {where}.")
 
 
-def get_client():
-    """2. Create the Groq client on first use instead of at import time."""
-    return Groq(api_key=check_groq_key())
+def retry_after_seconds(error, default=60.0):
+    """'Please try again in 9m33.696s' -> 573.7: how long Groq refuses the key."""
+    match = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", str(error))
+    if not match or not any(match.groups()):
+        return default
+    hours, minutes, seconds = (float(part or 0) for part in match.groups())
+    return hours * 3600 + minutes * 60 + seconds
+
+
+class FailoverGroq:
+    """A Groq client over the user's keys: when one key reaches its limit, the next one answers.
+
+    A key Groq refused is skipped until the time Groq gives, then used again first. Only rate
+    limits switch keys; any other error (a bad request, Groq being down) is raised as before.
+    """
+
+    def __init__(self, keys):
+        self.clients = [(key, Groq(api_key=key)) for key in keys]
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        self.models = SimpleNamespace(list=lambda: self._call(lambda client: client.models.list()))
+
+    def _create(self, **kwargs):
+        return self._call(lambda client: client.chat.completions.create(**kwargs))
+
+    def _call(self, request):
+        now = time.monotonic()
+        # Keys that are not resting first, in the user's order; resting ones last, in case they reset early.
+        order = sorted(range(len(self.clients)), key=lambda index: (_spent_until.get(self.clients[index][0], 0) > now,
+                                                                   index))
+        last_error = None
+        for position, index in enumerate(order):
+            key, client = self.clients[index]
+            try:
+                return request(client)
+            except RateLimitError as error:
+                _spent_until[key] = time.monotonic() + retry_after_seconds(error)
+                last_error = error
+                if position + 1 < len(order):
+                    log(f"⚠️ Groq key {index + 1} reached its limit; switching to key {order[position + 1] + 1}.",
+                        level="warning")
+        raise last_error
+
+
+def get_client(keys=None):
+    """2. Create the Groq client on first use instead of at import time; it switches keys at a limit."""
+    check_groq_key()
+    return FailoverGroq(keys or groq_keys())
 
 
 def load_master_resume():

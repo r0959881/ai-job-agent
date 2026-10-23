@@ -15,7 +15,8 @@ const GROUPS: { id: string; title: string; description: string; help?: { href: s
   {
     id: "groq",
     title: "Groq",
-    description: "Writes the tailored summary and bullets, and reads resume files during import.",
+    description:
+      "Writes the tailored summary and bullets, and reads resume files during import. Add a second key as a backup: it takes over when the first one reaches Groq's limit.",
     help: { href: "https://console.groq.com/keys", label: "Create a Groq key" },
   },
   {

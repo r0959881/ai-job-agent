@@ -55,16 +55,33 @@ _STEPSTONE_STATE = re.compile(r'window\.__PRELOADED_STATE__\["app-unifiedResultl
 _JSON_LD = re.compile(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', re.S)
 
 
-def _get(url, params=None, browser=False):
-    """A page's HTML. `browser` sends Chrome's TLS fingerprint, for sites that refuse plain HTTP clients."""
-    if browser:
-        from curl_cffi import requests as browser_requests
+RETRY_PAUSE = 3  # seconds before the one retry of a request that timed out or lost its connection
 
-        response = browser_requests.get(url, params=params, impersonate="chrome", timeout=TIMEOUT)
-    else:
-        response = requests.get(url, params=params, headers=BROWSER_HEADERS, timeout=TIMEOUT)
-    response.raise_for_status()
-    return response.text
+
+def _get(url, params=None, browser=False):
+    """A page's HTML. `browser` sends Chrome's TLS fingerprint, for sites that refuse plain HTTP clients.
+
+    A site that does not answer once (Randstad sometimes sends nothing for 30 seconds) gets one
+    more try, so a single slow answer does not cost the whole search.
+    """
+    from curl_cffi.requests import exceptions as browser_errors
+
+    transient = (requests.Timeout, requests.ConnectionError, browser_errors.Timeout, browser_errors.ConnectionError)
+    for attempt in (1, 2):
+        try:
+            if browser:
+                from curl_cffi import requests as browser_requests
+
+                response = browser_requests.get(url, params=params, impersonate="chrome", timeout=TIMEOUT)
+            else:
+                response = requests.get(url, params=params, headers=BROWSER_HEADERS, timeout=TIMEOUT)
+        except transient:
+            if attempt == 2:
+                raise
+            time.sleep(RETRY_PAUSE)
+            continue
+        response.raise_for_status()
+        return response.text
 
 
 def slug(query):

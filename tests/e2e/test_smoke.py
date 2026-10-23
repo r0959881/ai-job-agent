@@ -43,7 +43,8 @@ def server():
     env = {**os.environ, "AI_JOB_AGENT_ROOT": str(root), "AI_JOB_AGENT_FAKE_SOURCES": "1",
            "AI_JOB_AGENT_FAKE_GROQ_DELAY": "0.2", "AI_JOB_AGENT_DEV_LOGIN": "1",
            "AI_JOB_AGENT_LOCAL": "0"}
-    for key in ("GROQ_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "DATABASE_URL", "PUBLIC_URL", "SECRET_KEY"):
+    for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "BRAVE_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "DATABASE_URL", "PUBLIC_URL",
+                "SECRET_KEY"):
         env.pop(key, None)
     process = subprocess.Popen([sys.executable, "serve.py", "--no-browser", "--port", str(port)], cwd=CODE_ROOT,
                                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

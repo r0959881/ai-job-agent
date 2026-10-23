@@ -294,3 +294,37 @@ def test_le_forem_stops_asking_once_its_daily_quota_is_spent(monkeypatch):
         with pytest.raises(sites.ForemQuotaReached, match="limit is reached"):
             sites.fetch_forem("data analyst", ctx, ctx.regions[0])
     assert len(asked) == 1  # no retries, and no new request until the quota resets
+
+
+def test_a_page_that_times_out_once_is_asked_again(monkeypatch):
+    import pytest
+    from curl_cffi import requests as browser_requests
+    from curl_cffi.requests import exceptions as browser_errors
+
+    class Page:
+        text = "<html>ok</html>"
+
+        def raise_for_status(self):
+            pass
+
+    calls = []
+
+    def slow_then_ok(url, **_kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            raise browser_errors.Timeout("Operation timed out after 30002 milliseconds with 0 bytes received")
+        return Page()
+
+    monkeypatch.setattr(sites, "RETRY_PAUSE", 0)
+    monkeypatch.setattr(browser_requests, "get", slow_then_ok)
+    assert sites._get("https://www.randstad.be/x", browser=True) == "<html>ok</html>" and len(calls) == 2
+
+    def always_slow(url, **_kwargs):
+        calls.append(url)
+        raise browser_errors.Timeout("timed out")
+
+    calls.clear()
+    monkeypatch.setattr(browser_requests, "get", always_slow)
+    with pytest.raises(browser_errors.Timeout):
+        sites._get("https://www.randstad.be/x", browser=True)
+    assert len(calls) == 2  # one retry, then the search fails as before

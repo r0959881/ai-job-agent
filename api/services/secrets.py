@@ -11,6 +11,7 @@ from config import ENV_PATH, atomic_write_text
 
 MANAGED = {
     "GROQ_API_KEY": ("Groq API key", "groq"),
+    "GROQ_API_KEY_2": ("Groq API key 2 (backup)", "groq"),
     "ADZUNA_APP_ID": ("Adzuna app ID", "adzuna"),
     "ADZUNA_APP_KEY": ("Adzuna app key", "adzuna"),
     "BRAVE_API_KEY": ("Brave Search API key", "brave"),
